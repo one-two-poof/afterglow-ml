@@ -1,4 +1,12 @@
+# Secrets
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# AWS local settings
+.elasticbeanstalk/
 
 # Generated data files; keep the data documentation tracked.
 data/*
@@ -8,7 +16,7 @@ data/*
 !data/gangnam_seocho_places_drugstore_attraction_department_culture.csv
 
 # Runtime and build output
-.log
+*.log
 *.zip
 dist/
 build/
@@ -16,10 +24,10 @@ catboost_info/
 
 # Python
 .venv/
-pycache/
+__pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
 
 # Generated ML artifacts
-models/*.joblib
+models/
