@@ -1,10 +1,10 @@
 import unittest
 
-from recommendation.candidate_service import CandidateService
-from recommendation.course_service import CourseService
-from recommendation.models import Anchor, Place, TreatmentContext
-from recommendation.place_score import calculate_place_score, walk_score
-from recommendation.treatment_filter import FilterStatus, evaluate_treatments, treatment_filter
+from app.models.recommendation import Anchor, Place, TreatmentContext
+from app.rule.candidate_service import CandidateService
+from app.rule.course_service import CourseService
+from app.rule.place_score import calculate_place_score, walk_score
+from app.rule.treatment_filter import FilterStatus, evaluate_treatments, treatment_filter
 
 
 ANCHOR = Anchor("anchor", 37.5, 127.0)

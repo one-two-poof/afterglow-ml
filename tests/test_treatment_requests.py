@@ -2,7 +2,8 @@ import unittest
 
 from pydantic import ValidationError
 
-from model_server import PlaceRecommendationRequest, resolve_treatments
+from app.rule.inference import resolve_treatments
+from app.schemas.recommendation import PlaceRecommendationRequest
 
 
 BASE = {
