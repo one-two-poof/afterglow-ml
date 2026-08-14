@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Package source
-        run: tar --exclude='.git' --exclude='ml-build.tar.gz' -czf ml-build.tar.gz .
+        run: tar --exclude='.git' -czf /tmp/ml-build.tar.gz .
 
       - name: Prepare SSH
         env:
@@ -37,7 +37,7 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
         run: |
           scp -i ~/.ssh/afterglow-be-key.pem \
-            ml-build.tar.gz \
+            /tmp/ml-build.tar.gz \
             "${EC2_USER}@${EC2_ML_HOST}:/opt/afterglow-ml/ml-build.tar.gz.new"
 
       - name: Deploy & restart
