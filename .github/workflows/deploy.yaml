@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Package source
-        run: tar --exclude='.git' -czf ml-build.tar.gz .
+        run: tar --exclude='.git' --exclude='ml-build.tar.gz' -czf ml-build.tar.gz .
 
       - name: Prepare SSH
         env:
