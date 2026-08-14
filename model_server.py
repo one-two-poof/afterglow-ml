@@ -1,19 +1,17 @@
 from __future__ import annotations
 
-import json
-import os
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Literal
+from uuid import uuid4
 
-import pandas as pd
-from catboost import CatBoostRegressor
 from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from recommendation.analytics_service import anonymize_user_id, emit_event
 from recommendation.candidate_service import CandidateService, CsvPlaceRepository
-from recommendation.course_service import CourseService
 from recommendation.config import (
     DEFAULT_RESULT_LIMIT,
     DEFAULT_TOP_COURSES,
@@ -22,104 +20,12 @@ from recommendation.config import (
     VALID_PURPOSES,
     VALID_TREATMENTS,
 )
+from recommendation.course_service import CourseService
 from recommendation.models import Anchor, TreatmentContext
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_MODEL_PATH = BASE_DIR / "models" / "course_rating_catboost_v4.cbm"
-DEFAULT_METRICS_PATH = BASE_DIR / "models" / "course_rating_catboost_v4_metrics.json"
-MODEL_PATH = Path(os.getenv("MODEL_PATH", str(DEFAULT_MODEL_PATH))).resolve()
-METRICS_PATH = Path(os.getenv("METRICS_PATH", str(DEFAULT_METRICS_PATH))).resolve()
-
-RatingLevel = Annotated[float, Field(ge=1.0, le=5.0)]
-Distance = Annotated[float, Field(ge=0.0)]
-
-CATEGORICAL_COLUMNS = [
-    "Hospital_Name", "Treatment", "User_Purpose",
-    "Category_1", "Category_2", "Category_3",
-    "Place_1", "Place_2", "Place_3",
-]
-NUMERIC_COLUMNS = [
-    "User_Walk_Preference", "Days_After",
-    "Is_Indoor_1", "Is_Indoor_2", "Is_Indoor_3",
-    "Walk_Hard_1", "Walk_Hard_2", "Walk_Hard_3",
-    "Dist_1", "Dist_2", "Dist_3",
-    "Mean_Walk_Hard", "Indoor_Count", "Preference_Hard_Diff",
-]
-FEATURE_COLUMNS = CATEGORICAL_COLUMNS + NUMERIC_COLUMNS
-
-
-class CourseCandidate(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "example": {
-                "Hospital_Name": "닥터스프링의원",
-                "Treatment": "피부레이저",
-                "User_Purpose": "휴식",
-                "Category_1": "문화시설",
-                "Category_2": "쇼핑",
-                "Category_3": "문화시설",
-                "Place_1": "PS로이",
-                "Place_2": "올리브영 압구정로데오점",
-                "Place_3": "송은",
-                "User_Walk_Preference": 2,
-                "Days_After": 0,
-                "Is_Indoor_1": 1,
-                "Is_Indoor_2": 1,
-                "Is_Indoor_3": 1,
-                "Walk_Hard_1": 1,
-                "Walk_Hard_2": 2,
-                "Walk_Hard_3": 2,
-                "Dist_1": 0.4,
-                "Dist_2": 0.5,
-                "Dist_3": 0.6,
-            }
-        },
-    )
-
-    Hospital_Name: str = Field(min_length=1)
-    Treatment: str = Field(min_length=1)
-    User_Purpose: str = Field(min_length=1)
-    Category_1: str = Field(min_length=1)
-    Category_2: str = Field(min_length=1)
-    Category_3: str = Field(min_length=1)
-    Place_1: str = Field(min_length=1)
-    Place_2: str = Field(min_length=1)
-    Place_3: str = Field(min_length=1)
-    User_Walk_Preference: RatingLevel
-    Days_After: int = Field(ge=0)
-    Is_Indoor_1: int = Field(ge=0, le=1)
-    Is_Indoor_2: int = Field(ge=0, le=1)
-    Is_Indoor_3: int = Field(ge=0, le=1)
-    Walk_Hard_1: RatingLevel
-    Walk_Hard_2: RatingLevel
-    Walk_Hard_3: RatingLevel
-    Dist_1: Distance
-    Dist_2: Distance
-    Dist_3: Distance
-
-
-class PredictRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    candidates: list[CourseCandidate] = Field(min_length=1, max_length=1000)
-
-
-class Prediction(BaseModel):
-    index: int
-    predicted_rating: float
-
-
-class PredictResponse(BaseModel):
-    predictions: list[Prediction]
-
-
-class RankedPrediction(Prediction):
-    rank: int
-
-
-class RankResponse(BaseModel):
-    rankings: list[RankedPrediction]
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 class TreatmentEventInput(BaseModel):
@@ -140,7 +46,7 @@ class TreatmentEventInput(BaseModel):
         return self
 
 
-class PlaceRecommendationRequest(BaseModel):
+class RecommendationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     jwt: str | None = None
@@ -156,7 +62,7 @@ class PlaceRecommendationRequest(BaseModel):
     anchor_longitude: float | None = Field(default=None, ge=-180, le=180)
 
     @model_validator(mode="after")
-    def validate_treatments(self) -> "PlaceRecommendationRequest":
+    def validate_treatments(self) -> "RecommendationRequest":
         has_legacy = self.treatment is not None or self.days_after is not None
         if has_legacy and self.treatments is not None:
             raise ValueError("Use either treatment/days_after or treatments, not both")
@@ -165,14 +71,16 @@ class PlaceRecommendationRequest(BaseModel):
                 raise ValueError("Both treatment and days_after are required")
         elif not self.treatments:
             raise ValueError("At least one treatment is required")
-        scheduled_events = [
-            event for event in self.treatments or [] if event.scheduled_at is not None
-        ]
-        if scheduled_events and self.recommendation_at is None:
+        scheduled = [event for event in self.treatments or [] if event.scheduled_at]
+        if scheduled and self.recommendation_at is None:
             raise ValueError("recommendation_at is required with scheduled_at")
         if self.recommendation_at is not None and self.recommendation_at.utcoffset() is None:
             raise ValueError("recommendation_at must include a timezone offset")
         return self
+
+
+# Backward-compatible import name for existing clients and tests.
+PlaceRecommendationRequest = RecommendationRequest
 
 
 class AnchorResponse(BaseModel):
@@ -180,27 +88,6 @@ class AnchorResponse(BaseModel):
     latitude: float
     longitude: float
     anchor_type: str | None = None
-
-
-class CandidatePlaceResponse(BaseModel):
-    place_id: str
-    place_name: str
-    place_category: str
-    category_name: str
-    latitude: float
-    longitude: float
-    is_indoor: bool
-    walk_hard: int
-    distance_from_anchor_km: float
-    filter_status: str
-    risk_signals: list[str]
-    treatment_evaluations: list["TreatmentEvaluationResponse"]
-    purpose_score: float
-    treatment_score: float
-    distance_score: float
-    walk_score: float
-    place_score: float
-    place_url: str
 
 
 class TreatmentEvaluationResponse(BaseModel):
@@ -219,6 +106,27 @@ class ActiveTreatmentResponse(BaseModel):
     package_id: str | None = None
 
 
+class CandidatePlaceResponse(BaseModel):
+    place_id: str
+    place_name: str
+    place_category: str
+    category_name: str
+    latitude: float
+    longitude: float
+    is_indoor: bool
+    walk_hard: int
+    distance_from_anchor_km: float
+    filter_status: str
+    risk_signals: list[str]
+    treatment_evaluations: list[TreatmentEvaluationResponse]
+    purpose_score: float
+    treatment_score: float
+    distance_score: float
+    walk_score: float
+    place_score: float
+    place_url: str
+
+
 class PlaceRecommendationData(BaseModel):
     anchor: AnchorResponse
     active_treatments: list[ActiveTreatmentResponse]
@@ -228,6 +136,7 @@ class PlaceRecommendationData(BaseModel):
 
 class PlaceRecommendationResponse(BaseModel):
     status: str = "success"
+    recommendation_id: str
     data: PlaceRecommendationData
 
 
@@ -256,136 +165,50 @@ class CourseRecommendationData(BaseModel):
 
 class CourseRecommendationResponse(BaseModel):
     status: str = "success"
+    recommendation_id: str
     data: CourseRecommendationData
 
 
-def load_model(path: Path) -> CatBoostRegressor:
-    if not path.is_file():
-        raise RuntimeError(
-            f"Model not found: {path}. Run scripts/train_course_catboost.py first."
-        )
-    model = CatBoostRegressor()
-    model.load_model(path)
-    if model.feature_names_ != FEATURE_COLUMNS:
-        raise RuntimeError("The model feature schema does not match the inference API.")
-    return model
+class CourseSelectionFeedbackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    recommendation_id: str = Field(min_length=1)
+    jwt: str | None = None
+    event_type: Literal["course_selected", "course_dismissed"]
+    selected_course_rank: int | None = Field(default=None, ge=1, le=MAX_TOP_COURSES)
+    selected_place_ids: list[str] = Field(default_factory=list, max_length=3)
+
+    @model_validator(mode="after")
+    def validate_selection(self) -> "CourseSelectionFeedbackRequest":
+        if self.event_type == "course_selected" and self.selected_course_rank is None:
+            raise ValueError("selected_course_rank is required for course_selected")
+        return self
 
 
-def load_metrics(path: Path) -> dict:
-    if not path.is_file():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+class FeedbackResponse(BaseModel):
+    status: str = "accepted"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.model = load_model(MODEL_PATH)
-    app.state.metrics = load_metrics(METRICS_PATH)
     repository = CsvPlaceRepository(BASE_DIR / "data")
     app.state.place_repository = repository
     app.state.candidate_service = CandidateService(repository)
     app.state.course_service = CourseService(app.state.candidate_service)
     yield
-    app.state.model = None
     app.state.place_repository = None
     app.state.candidate_service = None
     app.state.course_service = None
 
 
 app = FastAPI(
-    title="Afterglow CatBoost Course Rating API",
-    version="4.0.0",
+    title="Afterglow Rule-Based Recommendation API",
+    version="1.0.0",
     lifespan=lifespan,
 )
 
 
-def candidates_to_frame(candidates: list[CourseCandidate]) -> pd.DataFrame:
-    frame = pd.DataFrame([candidate.model_dump() for candidate in candidates])
-    walk_columns = ["Walk_Hard_1", "Walk_Hard_2", "Walk_Hard_3"]
-    indoor_columns = ["Is_Indoor_1", "Is_Indoor_2", "Is_Indoor_3"]
-    frame["Mean_Walk_Hard"] = frame[walk_columns].mean(axis=1)
-    frame["Indoor_Count"] = frame[indoor_columns].sum(axis=1)
-    frame["Preference_Hard_Diff"] = (
-        frame["User_Walk_Preference"] - frame["Mean_Walk_Hard"]
-    ).abs()
-    return frame[FEATURE_COLUMNS]
-
-
-def infer(request: Request, candidates: list[CourseCandidate]) -> list[float]:
-    try:
-        values = request.app.state.model.predict(candidates_to_frame(candidates))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Model inference failed") from exc
-    return [float(value) for value in values]
-
-
-@app.get("/health")
-def health(request: Request) -> dict:
-    model = request.app.state.model
-    metrics = request.app.state.metrics
-    return {
-        "status": "ok",
-        "model": "CatBoostRegressor",
-        "version": app.version,
-        "tree_count": model.tree_count_,
-        "feature_count": len(model.feature_names_),
-        "test_rmse": metrics.get("rmse"),
-    }
-
-
-@app.post("/predict", response_model=PredictResponse)
-def predict_courses(payload: PredictRequest, request: Request) -> PredictResponse:
-    values = infer(request, payload.candidates)
-    return PredictResponse(
-        predictions=[
-            Prediction(index=index, predicted_rating=value)
-            for index, value in enumerate(values)
-        ]
-    )
-
-
-@app.post("/rank", response_model=RankResponse)
-def rank_courses(payload: PredictRequest, request: Request) -> RankResponse:
-    values = infer(request, payload.candidates)
-    sorted_values = sorted(enumerate(values), key=lambda item: item[1], reverse=True)
-    return RankResponse(
-        rankings=[
-            RankedPrediction(index=index, predicted_rating=value, rank=rank)
-            for rank, (index, value) in enumerate(sorted_values, start=1)
-        ]
-    )
-
-
-@app.post("/recommend/places", response_model=PlaceRecommendationResponse)
-def recommend_places(
-    payload: PlaceRecommendationRequest,
-    request: Request,
-    limit: int = Query(default=DEFAULT_RESULT_LIMIT, ge=1, le=MAX_RESULT_LIMIT),
-) -> PlaceRecommendationResponse:
-    anchor = resolve_anchor(payload, request)
-    treatments = resolve_treatments(payload)
-    candidates = request.app.state.candidate_service.recommend(
-        anchor=anchor,
-        treatments=treatments,
-        user_purpose=payload.user_purpose,
-        user_walk_preference=payload.user_walk_preference,
-        limit=limit,
-    )
-    return PlaceRecommendationResponse(
-        data=PlaceRecommendationData(
-            anchor=AnchorResponse(
-                name=anchor.name,
-                latitude=anchor.latitude,
-                longitude=anchor.longitude,
-                anchor_type=anchor.anchor_type,
-            ),
-            active_treatments=[ActiveTreatmentResponse(**vars(item)) for item in treatments],
-            candidate_places=[CandidatePlaceResponse(**item) for item in candidates],
-        )
-    )
-
-
-def resolve_anchor(payload: PlaceRecommendationRequest, request: Request) -> Anchor:
+def resolve_anchor(payload: RecommendationRequest, request: Request) -> Anchor:
     if payload.user_purpose not in VALID_PURPOSES:
         raise HTTPException(status_code=422, detail="Unsupported user_purpose")
     coordinates = (payload.anchor_latitude, payload.anchor_longitude)
@@ -404,37 +227,23 @@ def resolve_anchor(payload: PlaceRecommendationRequest, request: Request) -> Anc
     )
 
 
-def resolve_treatments(payload: PlaceRecommendationRequest) -> list[TreatmentContext]:
-    if payload.treatments is None:
-        events = [
-            TreatmentEventInput(
-                treatment=payload.treatment,
-                days_after=payload.days_after,
-            )
-        ]
-    else:
-        events = payload.treatments
-
+def resolve_treatments(payload: RecommendationRequest) -> list[TreatmentContext]:
+    events = payload.treatments or [
+        TreatmentEventInput(treatment=payload.treatment, days_after=payload.days_after)
+    ]
     contexts = []
     for event in events:
         if event.treatment not in VALID_TREATMENTS:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Unsupported treatment: {event.treatment}",
-            )
+            raise HTTPException(422, f"Unsupported treatment: {event.treatment}")
         if event.days_after is not None:
             days_after = event.days_after
         else:
             recommendation_at = payload.recommendation_at
             scheduled_at = event.scheduled_at
-            recommendation_in_treatment_tz = recommendation_at.astimezone(
-                scheduled_at.tzinfo
-            )
-            if recommendation_in_treatment_tz < scheduled_at:
+            recommendation_local = recommendation_at.astimezone(scheduled_at.tzinfo)
+            if recommendation_local < scheduled_at:
                 continue
-            days_after = (
-                recommendation_in_treatment_tz.date() - scheduled_at.date()
-            ).days
+            days_after = (recommendation_local.date() - scheduled_at.date()).days
         contexts.append(
             TreatmentContext(
                 treatment=event.treatment,
@@ -446,12 +255,73 @@ def resolve_treatments(payload: PlaceRecommendationRequest) -> list[TreatmentCon
     return contexts
 
 
+def active_treatment_responses(items: list[TreatmentContext]) -> list[ActiveTreatmentResponse]:
+    return [ActiveTreatmentResponse(**vars(item)) for item in items]
+
+
+def anchor_response(anchor: Anchor) -> AnchorResponse:
+    return AnchorResponse(
+        name=anchor.name,
+        latitude=anchor.latitude,
+        longitude=anchor.longitude,
+        anchor_type=anchor.anchor_type,
+    )
+
+
+@app.get("/health")
+def health(request: Request) -> dict:
+    return {
+        "status": "ok",
+        "service": "rule-based-recommendation",
+        "version": app.version,
+        "anchor_count": len(request.app.state.place_repository._anchors),
+        "candidate_place_count": len(request.app.state.place_repository.list_places()),
+        "catboost_loaded": False,
+    }
+
+
+@app.post("/recommend/places", response_model=PlaceRecommendationResponse)
+def recommend_places(
+    payload: RecommendationRequest,
+    request: Request,
+    limit: int = Query(default=DEFAULT_RESULT_LIMIT, ge=1, le=MAX_RESULT_LIMIT),
+) -> PlaceRecommendationResponse:
+    recommendation_id = str(uuid4())
+    anchor = resolve_anchor(payload, request)
+    treatments = resolve_treatments(payload)
+    candidates = request.app.state.candidate_service.recommend(
+        anchor=anchor,
+        treatments=treatments,
+        user_purpose=payload.user_purpose,
+        user_walk_preference=payload.user_walk_preference,
+        limit=limit,
+    )
+    emit_event(
+        "place_recommendation_generated",
+        recommendation_id=recommendation_id,
+        user_hash=anonymize_user_id(payload.jwt),
+        anchor_name=anchor.name,
+        treatments=[vars(item) for item in treatments],
+        purpose=payload.user_purpose,
+        place_ids=[item["place_id"] for item in candidates],
+    )
+    return PlaceRecommendationResponse(
+        recommendation_id=recommendation_id,
+        data=PlaceRecommendationData(
+            anchor=anchor_response(anchor),
+            active_treatments=active_treatment_responses(treatments),
+            candidate_places=[CandidatePlaceResponse(**item) for item in candidates],
+        ),
+    )
+
+
 @app.post("/recommend/courses", response_model=CourseRecommendationResponse)
 def recommend_courses(
-    payload: PlaceRecommendationRequest,
+    payload: RecommendationRequest,
     request: Request,
     top_n: int = Query(default=DEFAULT_TOP_COURSES, ge=1, le=MAX_TOP_COURSES),
 ) -> CourseRecommendationResponse:
+    recommendation_id = str(uuid4())
     anchor = resolve_anchor(payload, request)
     treatments = resolve_treatments(payload)
     courses = request.app.state.course_service.recommend(
@@ -461,15 +331,39 @@ def recommend_courses(
         user_walk_preference=payload.user_walk_preference,
         top_n=top_n,
     )
-    return CourseRecommendationResponse(
-        data=CourseRecommendationData(
-            anchor=AnchorResponse(
-                name=anchor.name,
-                latitude=anchor.latitude,
-                longitude=anchor.longitude,
-                anchor_type=anchor.anchor_type,
-            ),
-            active_treatments=[ActiveTreatmentResponse(**vars(item)) for item in treatments],
-            courses=[CourseResponse(**course) for course in courses],
-        )
+    emit_event(
+        "course_recommendation_generated",
+        recommendation_id=recommendation_id,
+        user_hash=anonymize_user_id(payload.jwt),
+        anchor_name=anchor.name,
+        treatments=[vars(item) for item in treatments],
+        purpose=payload.user_purpose,
+        courses=[
+            {
+                "rank": course["rank"],
+                "course_score": course["course_score"],
+                "place_ids": [place["place_id"] for place in course["places"]],
+            }
+            for course in courses
+        ],
     )
+    return CourseRecommendationResponse(
+        recommendation_id=recommendation_id,
+        data=CourseRecommendationData(
+            anchor=anchor_response(anchor),
+            active_treatments=active_treatment_responses(treatments),
+            courses=[CourseResponse(**course) for course in courses],
+        ),
+    )
+
+
+@app.post("/feedback/course-selection", response_model=FeedbackResponse)
+def collect_course_selection(payload: CourseSelectionFeedbackRequest) -> FeedbackResponse:
+    emit_event(
+        payload.event_type,
+        recommendation_id=payload.recommendation_id,
+        user_hash=anonymize_user_id(payload.jwt),
+        selected_course_rank=payload.selected_course_rank,
+        selected_place_ids=payload.selected_place_ids,
+    )
+    return FeedbackResponse()

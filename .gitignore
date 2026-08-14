@@ -3,14 +3,23 @@
 # Generated data files; keep the data documentation tracked.
 data/*
 !data/README.md
+# aws 올라가야 하는 데이터 파일
+!data/gangnam_seocho_skin_hospitals_accommodations.csv
+!data/gangnam_seocho_places_drugstore_attraction_department_culture.csv
 
-# Runtime logs
-*.log
+# Runtime and build output
+.log
+*.zip
+dist/
+build/
+catboost_info/
 
-# Python caches
-__pycache__/
-*.py[cod]
+# Python
 .venv/
+pycache/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
 
 # Generated ML artifacts
 models/*.joblib
