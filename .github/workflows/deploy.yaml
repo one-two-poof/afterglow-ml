@@ -1,74 +1,74 @@
-name: CI/CD Deploy ML API to EC2
+# name: CI/CD Deploy ML API to EC2
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+# on:
+#   push:
+#     branches: [main]
+#   workflow_dispatch:
 
-concurrency:
-  group: deploy-ml-ec2
-  cancel-in-progress: true
+# concurrency:
+#   group: deploy-ml-ec2
+#   cancel-in-progress: true
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 20
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
 
-      - name: Package source
-        run: tar --exclude='.git' -czf /tmp/ml-build.tar.gz .
+#       - name: Package source
+#         run: tar --exclude='.git' -czf /tmp/ml-build.tar.gz .
 
-      - name: Prepare SSH
-        env:
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_ML_HOST: ${{ secrets.EC2_ML_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/afterglow-be-key.pem
-          chmod 600 ~/.ssh/afterglow-be-key.pem
-          ssh-keyscan -H "$EC2_ML_HOST" >> ~/.ssh/known_hosts
+#       - name: Prepare SSH
+#         env:
+#           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+#           EC2_ML_HOST: ${{ secrets.EC2_ML_HOST }}
+#         run: |
+#           mkdir -p ~/.ssh
+#           printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/afterglow-be-key.pem
+#           chmod 600 ~/.ssh/afterglow-be-key.pem
+#           ssh-keyscan -H "$EC2_ML_HOST" >> ~/.ssh/known_hosts
 
-      - name: Upload build to EC2
-        env:
-          EC2_ML_HOST: ${{ secrets.EC2_ML_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-        run: |
-          scp -i ~/.ssh/afterglow-be-key.pem \
-            /tmp/ml-build.tar.gz \
-            "${EC2_USER}@${EC2_ML_HOST}:/opt/afterglow-ml/ml-build.tar.gz.new"
+#       - name: Upload build to EC2
+#         env:
+#           EC2_ML_HOST: ${{ secrets.EC2_ML_HOST }}
+#           EC2_USER: ${{ secrets.EC2_USER }}
+#         run: |
+#           scp -i ~/.ssh/afterglow-be-key.pem \
+#             /tmp/ml-build.tar.gz \
+#             "${EC2_USER}@${EC2_ML_HOST}:/opt/afterglow-ml/ml-build.tar.gz.new"
 
-      - name: Deploy & restart
-        env:
-          EC2_ML_HOST: ${{ secrets.EC2_ML_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-        run: |
-          ssh -i ~/.ssh/afterglow-be-key.pem "${EC2_USER}@${EC2_ML_HOST}" '
-            set -e
-            cd /opt/afterglow-ml
-            rm -rf app.new
-            mkdir app.new
-            tar -xzf ml-build.tar.gz.new -C app.new
-            rm ml-build.tar.gz.new
-            /opt/afterglow-ml/venv/bin/pip install --quiet -r app.new/requirements.txt
-            rm -rf app.old
-            [ -d app ] && mv app app.old || true
-            mv app.new app
-            sudo systemctl restart afterglow-ml
-            sudo systemctl is-active afterglow-ml
-            for i in $(seq 1 30); do
-              if curl -sf http://127.0.0.1:8000/health > /dev/null; then
-                echo
-                echo "Health check OK"
-                rm -rf app.old
-                exit 0
-              fi
-              echo "Waiting for app... ($i/30)"
-              sleep 3
-            done
-            echo "Health check failed"
-            sudo journalctl -u afterglow-ml -n 50 --no-pager
-            exit 1
-          '
+#       - name: Deploy & restart
+#         env:
+#           EC2_ML_HOST: ${{ secrets.EC2_ML_HOST }}
+#           EC2_USER: ${{ secrets.EC2_USER }}
+#         run: |
+#           ssh -i ~/.ssh/afterglow-be-key.pem "${EC2_USER}@${EC2_ML_HOST}" '
+#             set -e
+#             cd /opt/afterglow-ml
+#             rm -rf app.new
+#             mkdir app.new
+#             tar -xzf ml-build.tar.gz.new -C app.new
+#             rm ml-build.tar.gz.new
+#             /opt/afterglow-ml/venv/bin/pip install --quiet -r app.new/requirements.txt
+#             rm -rf app.old
+#             [ -d app ] && mv app app.old || true
+#             mv app.new app
+#             sudo systemctl restart afterglow-ml
+#             sudo systemctl is-active afterglow-ml
+#             for i in $(seq 1 30); do
+#               if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+#                 echo
+#                 echo "Health check OK"
+#                 rm -rf app.old
+#                 exit 0
+#               fi
+#               echo "Waiting for app... ($i/30)"
+#               sleep 3
+#             done
+#             echo "Health check failed"
+#             sudo journalctl -u afterglow-ml -n 50 --no-pager
+#             exit 1
+#           '
