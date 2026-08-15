@@ -31,3 +31,8 @@ __pycache__/
 
 # Generated ML artifacts
 models/
+
+# 기타 등등
+scripts/
+mdfile/
+tests/
