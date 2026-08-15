@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from app.api.recommendation import router as recommendation_router
+from app.api.health import router as health_router
 from app.config.settings import APP_TITLE, APP_VERSION
 from app.repositories.csv_place_repository import CsvPlaceRepository
 from app.rule.candidate_service import CandidateService
@@ -38,3 +39,4 @@ async def lifespan(app: FastAPI):
 # 구동점에는 비즈니스 규칙을 두지 않고 앱 생성과 라우터 등록만 둔다.
 app = FastAPI(title=APP_TITLE, version=APP_VERSION, lifespan=lifespan)
 app.include_router(recommendation_router)
+app.include_router(health_router)

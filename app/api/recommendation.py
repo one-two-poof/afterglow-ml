@@ -11,10 +11,11 @@ from app.config.settings import (
     MAX_TOP_COURSES,
 )
 
+
 from app.schemas.recommendation import RecommendationResponse, RecommendationRequest
 
 from app.rule.analytics_service import anonymize_user_id, emit_event
-from app.rule.inference import active_treatment_responses, anchor_response, resolve_anchor, resolve_treatments
+from app.rule.inference import imsi
 
 # 애플리케이션 구동점에서 한 번에 등록할 추천 전용 라우터다.
 router = APIRouter(
@@ -25,7 +26,8 @@ router = APIRouter(
 @router.post("/course", response_model=RecommendationResponse, summary="추천 코스 생성 API")
 def recommen_courses(requeset: RecommendationRequest):
     try:
-        pass
+        result = imsi(requeset)
+        return result
     except Exception as e:
         print(f"추천 중 에러 발생: {str(e)}")
         raise HTTPException(status_code=500, detail=f"코스 추천 실패: {str(e)}")
