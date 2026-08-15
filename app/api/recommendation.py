@@ -2,7 +2,7 @@
 
 from uuid import uuid4
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, HTTPException
 
 from app.config.settings import (
     DEFAULT_RESULT_LIMIT,
@@ -10,47 +10,37 @@ from app.config.settings import (
     MAX_RESULT_LIMIT,
     MAX_TOP_COURSES,
 )
+
+from app.schemas.recommendation import RecommendationResponse, RecommendationRequest
+
 from app.rule.analytics_service import anonymize_user_id, emit_event
 from app.rule.inference import active_treatment_responses, anchor_response, resolve_anchor, resolve_treatments
-from app.schemas.recommendation import (
-    CandidatePlaceResponse,
-    CourseRecommendationData,
-    CourseRecommendationResponse,
-    CourseResponse,
-    CourseSelectionFeedbackRequest,
-    FeedbackResponse,
-    PlaceRecommendationData,
-    PlaceRecommendationResponse,
-    RecommendationRequest,
-)
-
 
 # 애플리케이션 구동점에서 한 번에 등록할 추천 전용 라우터다.
-router = APIRouter()
+router = APIRouter(
+    prefix="/api",
+    tags=["recommendation"]
+)
+
+@router.post("/course", response_model=RecommendationResponse, summary="추천 코스 생성 API")
+def recommen_courses(requeset: RecommendationRequest):
+    try:
+        pass
+    except Exception as e:
+        print(f"추천 중 에러 발생: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"코스 추천 실패: {str(e)}")
 
 
-@router.get("/health")
-def health(request: Request) -> dict:
-    """서버 상태와 메모리에 적재된 추천 데이터 건수를 반환한다."""
-    # 구체 구현이 CSV인지 DB인지와 무관하게 Repository 계약만 사용한다.
-    repository = request.app.state.place_repository
-    return {
-        "status": "ok",
-        "service": "rule-based-recommendation",
-        "version": request.app.version,
-        "anchor_count": repository.anchor_count(),
-        "candidate_place_count": len(repository.list_places()),
-        "catboost_loaded": False,
-    }
 
 
+"""
 @router.post("/recommend/places", response_model=PlaceRecommendationResponse)
 def recommend_places(
     payload: RecommendationRequest,
     request: Request,
     limit: int = Query(default=DEFAULT_RESULT_LIMIT, ge=1, le=MAX_RESULT_LIMIT),
 ) -> PlaceRecommendationResponse:
-    """시술 안전 규칙과 사용자 조건을 적용한 후보 장소를 반환한다."""
+
     # 각 요청에 피드백 및 분석 로그 연결용 고유 ID를 발급한다.
     recommendation_id = str(uuid4())
     # 오케스트레이터가 입력을 내부 Anchor와 시술 컨텍스트로 변환한다.
@@ -91,7 +81,7 @@ def recommend_courses(
     request: Request,
     top_n: int = Query(default=DEFAULT_TOP_COURSES, ge=1, le=MAX_TOP_COURSES),
 ) -> CourseRecommendationResponse:
-    """필터를 통과한 장소를 조합하여 점수순 추천 코스를 반환한다."""
+    필터를 통과한 장소를 조합하여 점수순 추천 코스를 반환한다.
     recommendation_id = str(uuid4())
     anchor = resolve_anchor(payload, request.app.state.place_repository)
     treatments = resolve_treatments(payload)
@@ -132,7 +122,7 @@ def recommend_courses(
 
 @router.post("/feedback/course-selection", response_model=FeedbackResponse)
 def collect_course_selection(payload: CourseSelectionFeedbackRequest) -> FeedbackResponse:
-    """사용자의 코스 선택 여부를 익명 분석 이벤트로 기록한다."""
+    사용자의 코스 선택 여부를 익명 분석 이벤트로 기록한다.
     # 현재 피드백 저장소는 DB가 아니라 구조화된 애플리케이션 로그다.
     emit_event(
         payload.event_type,
@@ -142,3 +132,4 @@ def collect_course_selection(payload: CourseSelectionFeedbackRequest) -> Feedbac
         selected_place_ids=payload.selected_place_ids,
     )
     return FeedbackResponse()
+"""
