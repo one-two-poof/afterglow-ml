@@ -1,192 +1,83 @@
-"""추천 API가 외부와 주고받는 요청·응답 데이터 형식을 정의한다."""
+from enum import Enum
+from typing import List
+from pydantic import BaseModel, Field
 
-from datetime import datetime
-from typing import Literal
+# =========  추론 Request =========
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+# 선택지 제한을 위한 Enum 클래스 정의
+class TreatmentType(str, Enum):
+    lifting = "리프팅"
+    botox = "보톡스"
+    obesity = "비만(약처방)"
+    skin_booster = "스킨부스터"
+    contour_injection = "윤곽/체형주사"
+    hair_removal = "제모"
+    skin_care = "피부관리"
+    laser = "피부레이저"
+    filler = "필러"
+    peeling = "필링"
 
-from app.config.settings import MAX_TOP_COURSES
+class UserPurpose(str, Enum):
+    culture = "문화관광"
+    shopping = "뷰티쇼핑"
+    rest = "휴식"
 
+# --- 하위 요청 객체 ---
+class DailyStartItem(BaseModel):
+    date: str = Field(..., description="YYYY-MM-DD 날짜")
+    start_id: int = Field(..., description="해당 날짜의 시작점 이름 (병원 또는 숙소)")
 
-class TreatmentEventInput(BaseModel):
-    """단일 시술의 종류와 평가 기준 시점을 표현한다."""
+class TreatmentItem(BaseModel):
+    name: TreatmentType = Field(..., description="시술 항목")
+    dateString: str = Field(..., description="시술 받는 날짜 (YYYY-MM-DD)")
 
-    # 명세에 없는 필드가 조용히 무시되어 오입력되는 것을 방지한다.
-    model_config = ConfigDict(extra="forbid")
-
-    treatment: str
-    days_after: int | None = Field(default=None, ge=0)
-    scheduled_at: datetime | None = None
-    hospital_name: str | None = None
-    package_id: str | None = None
-
-    @model_validator(mode="after")
-    def validate_timing(self) -> "TreatmentEventInput":
-        """경과일과 시술 시각 중 정확히 하나만 받도록 검증한다."""
-        if (self.days_after is None) == (self.scheduled_at is None):
-            raise ValueError("Provide exactly one of days_after or scheduled_at")
-        if self.scheduled_at is not None and self.scheduled_at.utcoffset() is None:
-            raise ValueError("scheduled_at must include a timezone offset")
-        return self
-
-
+# --- 최종 요청 객체 ---
 class RecommendationRequest(BaseModel):
-    """장소 추천과 코스 추천이 공통으로 사용하는 요청 본문이다."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    jwt: str | None = None
-    title: str = Field(min_length=1)
-    treatment: str | None = None
-    days_after: int | None = Field(default=None, ge=0)
-    treatments: list[TreatmentEventInput] | None = Field(default=None, min_length=1, max_length=20)
-    recommendation_at: datetime | None = None
-    user_purpose: str
-    user_walk_preference: int = Field(ge=1, le=5)
-    anchor_type: str | None = None
-    anchor_latitude: float | None = Field(default=None, ge=-90, le=90)
-    anchor_longitude: float | None = Field(default=None, ge=-180, le=180)
-
-    @model_validator(mode="after")
-    def validate_treatments(self) -> "RecommendationRequest":
-        """단일·다중 시술 형식과 시간대 관련 교차 필드를 검증한다."""
-        # 기존 클라이언트의 단일 시술 필드와 신규 배열 형식은 혼용할 수 없다.
-        has_legacy = self.treatment is not None or self.days_after is not None
-        if has_legacy and self.treatments is not None:
-            raise ValueError("Use either treatment/days_after or treatments, not both")
-        if has_legacy:
-            if self.treatment is None or self.days_after is None:
-                raise ValueError("Both treatment and days_after are required")
-        elif not self.treatments:
-            raise ValueError("At least one treatment is required")
-        # 시술 시각으로 경과일을 계산하려면 추천 평가 시각도 반드시 필요하다.
-        scheduled = [event for event in self.treatments or [] if event.scheduled_at]
-        if scheduled and self.recommendation_at is None:
-            raise ValueError("recommendation_at is required with scheduled_at")
-        if self.recommendation_at is not None and self.recommendation_at.utcoffset() is None:
-            raise ValueError("recommendation_at must include a timezone offset")
-        return self
+    trip_start_date: str = Field(..., description="여행 시작일 (YYYY-MM-DD)")
+    trip_end_date: str = Field(..., description="여행 종료일 (YYYY-MM-DD)")
+    user_purpose: UserPurpose = Field(..., description="유저 방문 목적")
+    user_walk_preference: int = Field(..., ge=1, le=5, description="도보 선호도 (1~5)")
+    daily_startList: List[DailyStartItem] = Field(..., description="날짜별 출발점 정보 리스트")
+    treatmentList: List[TreatmentItem] = Field(..., description="여행 기간 중 받는 시술 목록")
 
 
-# 기존 코드가 사용하던 클래스 이름을 계속 지원한다.
-PlaceRecommendationRequest = RecommendationRequest
+# ========= 추론 Response =========
 
+class StartLocation(BaseModel):
+    name: str = Field(..., description="출발점 이름 (병원 또는 숙소)")
+    mapX: float = Field(..., description="위도 (Latitude)")
+    mapY: float = Field(..., description="경도 (Longitude)")
 
-class AnchorResponse(BaseModel):
-    """추천 경로의 출발점으로 사용한 병원·숙소 또는 사용자 좌표다."""
-    name: str
-    latitude: float
-    longitude: float
-    anchor_type: str | None = None
+class TreatmentItem(BaseModel):
+    name: str = Field(..., description="시술 또는 치료 이름")
+    date: str = Field(..., description="시술 예정 날짜 (YYYY-MM-DD)")
 
+class PlaceItem(BaseModel):
+    visit_order: int = Field(..., description="방문 순서")
+    place_name: str = Field(..., description="장소 이름")
+    place_category: str = Field(..., description="장소 카테고리")
+    mapX: float = Field(..., description="위도 (Latitude)")
+    mapY: float = Field(..., description="경도 (Longitude)")
+    is_indoor: int = Field(..., description="실내 여부 (0: 야외, 1: 실내)")
+    walk_hard: int = Field(..., description="걷기 난이도 (1 ~ 5)")
+    dist_to_prev_km: float = Field(..., description="이전 장소로부터의 거리 (km)")
 
-class TreatmentEvaluationResponse(BaseModel):
-    """후보 장소 한 곳에 대한 개별 시술의 안전 규칙 평가 결과다."""
-    treatment: str
-    days_after: int
-    status: str
-    matched_risk_signals: list[str]
-    hospital_name: str | None = None
-    package_id: str | None = None
+class RecommendedCourse(BaseModel):
+    rank: int = Field(..., description="AI 추천 순위 (1 ~ 3)")
+    course_id: str = Field(..., description="추천 코스 고유 ID")
+    total_distance_km: float = Field(..., description="코스 내 전체 이동 거리 합산 (km)")
+    places: List[PlaceItem] = Field(..., description="코스에 포함된 장소 리스트")
 
+class DailyRecommendation(BaseModel):
+    date: str = Field(..., description="해당 날짜 (YYYY-MM-DD)")
+    start_location: StartLocation = Field(..., description="해당 날짜의 출발점 정보")
+    treatment: List[TreatmentItem] = Field(..., description="해당 일정 관련 시술 목록")
+    recommended_courses: List[RecommendedCourse] = Field(..., description="해당 날짜의 추천 코스 리스트")
 
-class ActiveTreatmentResponse(BaseModel):
-    """추천 평가 시점에 이미 시행되어 활성화된 시술 정보다."""
-    treatment: str
-    days_after: int
-    hospital_name: str | None = None
-    package_id: str | None = None
+class RecommendationResponseData(BaseModel):
+    daily_recommendations: List[DailyRecommendation] = Field(..., description="날짜별 추천 코스 리스트")
 
-
-class CandidatePlaceResponse(BaseModel):
-    """필터를 통과한 후보 장소와 점수 상세를 반환한다."""
-    place_id: str
-    place_name: str
-    place_category: str
-    category_name: str
-    latitude: float
-    longitude: float
-    is_indoor: bool
-    walk_hard: int
-    distance_from_anchor_km: float
-    filter_status: str
-    risk_signals: list[str]
-    treatment_evaluations: list[TreatmentEvaluationResponse]
-    purpose_score: float
-    treatment_score: float
-    distance_score: float
-    walk_score: float
-    place_score: float
-    place_url: str
-
-
-class PlaceRecommendationData(BaseModel):
-    """장소 추천 응답의 실제 데이터 영역이다."""
-    anchor: AnchorResponse
-    active_treatments: list[ActiveTreatmentResponse]
-    medical_compatibility_checked: bool = False
-    candidate_places: list[CandidatePlaceResponse]
-
-
-class PlaceRecommendationResponse(BaseModel):
-    """장소 추천 API의 최상위 성공 응답이다."""
-    status: str = "success"
-    recommendation_id: str
-    data: PlaceRecommendationData
-
-
-class CoursePlaceResponse(CandidatePlaceResponse):
-    """후보 장소 정보에 코스 방문 순서와 이전 구간 거리를 추가한다."""
-    order: int
-    distance_from_previous_km: float
-
-
-class CourseResponse(BaseModel):
-    """장소 세 곳으로 구성된 단일 추천 코스와 점수 구성이다."""
-    rank: int
-    course_score: float
-    average_place_score: float
-    route_score: float
-    diversity_score: float
-    purpose_composition_score: float
-    total_distance_km: float
-    places: list[CoursePlaceResponse]
-
-
-class CourseRecommendationData(BaseModel):
-    """코스 추천 응답의 실제 데이터 영역이다."""
-    anchor: AnchorResponse
-    active_treatments: list[ActiveTreatmentResponse]
-    medical_compatibility_checked: bool = False
-    courses: list[CourseResponse]
-
-
-class CourseRecommendationResponse(BaseModel):
-    """코스 추천 API의 최상위 성공 응답이다."""
-    status: str = "success"
-    recommendation_id: str
-    data: CourseRecommendationData
-
-
-class CourseSelectionFeedbackRequest(BaseModel):
-    """추천 코스 선택 또는 미선택 분석 이벤트 요청이다."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    recommendation_id: str = Field(min_length=1)
-    jwt: str | None = None
-    event_type: Literal["course_selected", "course_dismissed"]
-    selected_course_rank: int | None = Field(default=None, ge=1, le=MAX_TOP_COURSES)
-    selected_place_ids: list[str] = Field(default_factory=list, max_length=3)
-
-    @model_validator(mode="after")
-    def validate_selection(self) -> "CourseSelectionFeedbackRequest":
-        """선택 이벤트에는 선택 순위가 반드시 포함되도록 보장한다."""
-        if self.event_type == "course_selected" and self.selected_course_rank is None:
-            raise ValueError("selected_course_rank is required for course_selected")
-        return self
-
-
-class FeedbackResponse(BaseModel):
-    """피드백 이벤트 접수 완료 응답이다."""
-    status: str = "accepted"
+class RecommendationResponse(BaseModel):
+    status: str = Field(..., description="응답 상태")
+    message: str = Field(..., description="응답 메시지")
+    data: RecommendationResponseData = Field(..., description="응답 데이터 본문")
