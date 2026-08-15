@@ -39,12 +39,10 @@ afterglow-ai/
 │   └── utils/
 │       └── __init__.py
 ├── data/                               # CSV 원천 및 가공 데이터
-├── models/                             # 학습 모델 파일
-├── recommendation/                     # 기존 import 경로 호환 래퍼
+├── mdfile/                             # API 및 모델 관련 상세 문서
 ├── scripts/                            # 수집·정제·학습 스크립트
 ├── tests/                              # 회귀 테스트
-├── model_server.py                     # 기존 구동점 호환 래퍼
-├── Procfile
+├── .github/workflows/                  # GitHub Actions 배포 워크플로
 ├── requirements.txt
 └── README.md
 ```
@@ -60,7 +58,7 @@ HTTP 요청
   → CSV 또는 향후 AWS DB
 ```
 
-- `model_server.py`는 애플리케이션 생성과 의존성 연결만 담당한다.
+- `app/model_server.py`는 애플리케이션 생성과 의존성 연결만 담당한다.
 - `api/`는 HTTP 입력과 출력만 담당한다.
 - `schemas/`는 외부 API 데이터 모델을 담당한다.
 - `rule/inference.py`는 Anchor 및 시술 변환 등 전체 추천 흐름을 조정한다.
@@ -74,8 +72,6 @@ HTTP 요청
 pip install -r requirements.txt
 uvicorn app.model_server:app --reload --host 127.0.0.1 --port 8000
 ```
-
-기존 명령인 `uvicorn model_server:app`도 호환된다.
 
 ## API
 
