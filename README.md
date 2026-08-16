@@ -7,42 +7,50 @@
 ```text
 afterglow-ai/
 ├── app/
-│   ├── __init__.py
-│   ├── model_server.py                 # FastAPI 앱 생성, lifespan, 라우터 등록
+│   │
 │   ├── api/
 │   │   ├── __init__.py
-│   │   └── recommendation.py           # 추천, 상태, 피드백 API 엔드포인트
+│   │   ├── health.py                 # 서버 상태 확인 API 엔드포인트
+│   │   └── recommendation.py         # 추천, 피드백 API 엔드포인트
+│   │
 │   ├── config/
 │   │   ├── __init__.py
-│   │   ├── base_config.yaml            # 운영 설정값
-│   │   ├── policy_config.py            # 시술·점수·코스 정책
-│   │   └── settings.py                 # 설정 로딩 및 외부 제공
+│   │   ├── rule_config.yaml          # 통합 규칙 설정 파일 (YAML)
+│   │   └── database.py               # DB 연결 및 세션 생성 (SQLAlchemy)
+│   │
 │   ├── models/
 │   │   ├── __init__.py
-│   │   └── recommendation.py           # 내부 도메인 모델
+│   │   ├── place.py                  # 추천 장소 ORM 모델
+│   │   └── start_location.py         # 출발지 ORM 모델
+│   │
 │   ├── repositories/
 │   │   ├── __init__.py
-│   │   ├── place_repository.py         # 데이터 접근 인터페이스
-│   │   └── csv_place_repository.py     # CSV 구현체
+│   │   ├── place.py                  # 추천 장소 데이터 접근 레이어
+│   │   └── start_location.py         # 출발지 데이터 접근 레이어
+│   │
 │   ├── rule/
 │   │   ├── __init__.py
-│   │   ├── inference.py                # 전체 추천 흐름 조정
-│   │   ├── candidate_service.py
-│   │   ├── course_service.py
-│   │   ├── treatment_filter.py
-│   │   ├── place_score.py
-│   │   ├── distance_service.py
-│   │   └── analytics_service.py
+│   │   ├── category.py               # 카테고리 가산점 규칙
+│   │   ├── distance.py               # 거리 계산 및 필터링 규칙
+│   │   └── inference.py              # 전체 추천 및 코스 생성 흐름 조정 (apply_rule 등)
+│   │
 │   ├── schemas/
 │   │   ├── __init__.py
-│   │   └── recommendation.py           # Request/Response Pydantic 모델
-│   └── utils/
-│       └── __init__.py
-├── data/                               # CSV 원천 및 가공 데이터
-├── mdfile/                             # API 및 모델 관련 상세 문서
-├── scripts/                            # 수집·정제·학습 스크립트
-├── tests/                              # 회귀 테스트
-├── .github/workflows/                  # GitHub Actions 배포 워크플로
+│   │   └── recommendation.py         # Request/Response Pydantic 모델
+│   │
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── config_loader.py          # 통합 규칙 설정 메모리 캐싱 로더
+│   │   └── distance.py               # 거리 계산 유틸 (하버사인 공식)
+│   │
+│   ├── __init__.py
+│   └── model_server.py               # FastAPI 앱 생성, lifespan 설정, 라우터 등록
+│
+├── data/                             # CSV 원천 및 가공 데이터
+├── mdfile/                           # API 및 모델 관련 상세 문서
+├── scripts/                          # 수집·정제·학습 스크립트
+├── tests/                            # 회귀 테스트
+├── .github/workflows/                # GitHub Actions 배포 워크플로
 ├── requirements.txt
 └── README.md
 ```
@@ -58,13 +66,14 @@ HTTP 요청
   → CSV 또는 향후 AWS DB
 ```
 
-- `app/model_server.py`는 애플리케이션 생성과 의존성 연결만 담당한다.
-- `api/`는 HTTP 입력과 출력만 담당한다.
-- `schemas/`는 외부 API 데이터 모델을 담당한다.
-- `rule/inference.py`는 Anchor 및 시술 변환 등 전체 추천 흐름을 조정한다.
-- `rule/`의 개별 서비스는 후보 선정, 필터, 점수, 코스 구성을 담당한다.
-- `repositories/`는 저장 방식과 추천 규칙을 분리한다.
-- `config/`는 운영 설정과 추천 정책을 관리한다.
+- `app/model_server.py`: 애플리케이션 생성, lifespan을 통한 전역 설정 로딩(load_rule_config), 라우터 등록 등 구동점 역할만 담당한다.
+- `app/api/`: HTTP 요청 입력(Request)과 응답 출력(Response) 검증 및 라우팅만 담당한다.
+- `app/schemas/`: 외부 API 통신을 위한 Pydantic 데이터 모델을 정의한다.
+- `app/rule/inference.py`: 전체 추천 흐름(후보군 조회, 날짜별 순회, 룰 적용, 코스 조합)을 조정한다.
+- `app/rule/`: 카테고리(category.py) 및 거리(distance.py)별 개별 비즈니스 규칙과 점수 산정 로직을 담당한다.
+- `app/repositories/`: 데이터베이스와의 상호작용(쿼리 조회 등)을 캡슐화하여 비즈니스 로직과 분리한다.
+- `app/config/`: 데이터베이스 세션(database.py) 및 통합 규칙 설정(rule_config.yaml)을 관리한다.
+- `app/utils/`: 전역 설정 메모리 캐싱 로더(config_loader.py) 및 하버사인 거리 계산(distance.py) 등의 공통 유틸리티를 제공한다.
 
 ## 실행
 
