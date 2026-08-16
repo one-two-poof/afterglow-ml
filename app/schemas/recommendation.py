@@ -75,10 +75,5 @@ class DailyRecommendation(BaseModel):
     treatment: List[TreatmentResponse] = Field(..., description="해당 일정 관련 시술 목록")
     recommended_courses: List[RecommendedCourse] = Field(..., description="해당 날짜의 추천 코스 리스트")
 
-class RecommendationResponseData(BaseModel):
-    daily_recommendations: List[DailyRecommendation] = Field(..., description="날짜별 추천 코스 리스트")
-
 class RecommendationResponse(BaseModel):
-    status: str = Field(..., description="응답 상태")
-    message: str = Field(..., description="응답 메시지")
-    data: RecommendationResponseData = Field(..., description="응답 데이터 본문")
+    daily_recommendations: List[DailyRecommendation] = Field(..., description="날짜별 추천 코스 리스트")
