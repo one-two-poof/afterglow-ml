@@ -29,9 +29,6 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
-# Generated ML artifacts
-models/
-
 # 기타 등등
 scripts/
 mdfile/
