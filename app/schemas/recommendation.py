@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import List
 from pydantic import BaseModel, Field
+import datetime
 
 # =========  추론 Request =========
 
@@ -24,21 +25,21 @@ class UserPurpose(str, Enum):
 
 # --- 하위 요청 객체 ---
 class DailyStartItem(BaseModel):
-    date: str = Field(..., description="YYYY-MM-DD 날짜")
+    date: datetime.date = Field(..., description="YYYY-MM-DD 날짜")
     start_id: int = Field(..., description="해당 날짜의 시작점 이름 (병원 또는 숙소)")
 
-class TreatmentItem(BaseModel):
+class TreatmentRequest(BaseModel):
     name: TreatmentType = Field(..., description="시술 항목")
-    dateString: str = Field(..., description="시술 받는 날짜 (YYYY-MM-DD)")
+    date: datetime.date = Field(..., description="시술 받는 날짜 (YYYY-MM-DD)")
 
 # --- 최종 요청 객체 ---
 class RecommendationRequest(BaseModel):
-    trip_start_date: str = Field(..., description="여행 시작일 (YYYY-MM-DD)")
-    trip_end_date: str = Field(..., description="여행 종료일 (YYYY-MM-DD)")
+    trip_start_date: datetime.date = Field(..., description="여행 시작일 (YYYY-MM-DD)")
+    trip_end_date: datetime.date = Field(..., description="여행 종료일 (YYYY-MM-DD)")
     user_purpose: UserPurpose = Field(..., description="유저 방문 목적")
     user_walk_preference: int = Field(..., ge=1, le=5, description="도보 선호도 (1~5)")
     daily_startList: List[DailyStartItem] = Field(..., description="날짜별 출발점 정보 리스트")
-    treatmentList: List[TreatmentItem] = Field(..., description="여행 기간 중 받는 시술 목록")
+    treatmentList: List[TreatmentRequest] = Field(..., description="여행 기간 중 받는 시술 목록")
 
 
 # ========= 추론 Response =========
@@ -48,9 +49,9 @@ class StartLocation(BaseModel):
     mapX: float = Field(..., description="위도 (Latitude)")
     mapY: float = Field(..., description="경도 (Longitude)")
 
-class TreatmentItem(BaseModel):
+class TreatmentResponse(BaseModel):
     name: str = Field(..., description="시술 또는 치료 이름")
-    date: str = Field(..., description="시술 예정 날짜 (YYYY-MM-DD)")
+    date: datetime.date = Field(..., description="시술 예정 날짜 (YYYY-MM-DD)")
 
 class PlaceItem(BaseModel):
     visit_order: int = Field(..., description="방문 순서")
@@ -69,9 +70,9 @@ class RecommendedCourse(BaseModel):
     places: List[PlaceItem] = Field(..., description="코스에 포함된 장소 리스트")
 
 class DailyRecommendation(BaseModel):
-    date: str = Field(..., description="해당 날짜 (YYYY-MM-DD)")
+    date: datetime.date = Field(..., description="해당 날짜 (YYYY-MM-DD)")
     start_location: StartLocation = Field(..., description="해당 날짜의 출발점 정보")
-    treatment: List[TreatmentItem] = Field(..., description="해당 일정 관련 시술 목록")
+    treatment: List[TreatmentResponse] = Field(..., description="해당 일정 관련 시술 목록")
     recommended_courses: List[RecommendedCourse] = Field(..., description="해당 날짜의 추천 코스 리스트")
 
 class RecommendationResponseData(BaseModel):
