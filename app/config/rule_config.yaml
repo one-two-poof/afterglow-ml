@@ -1,0 +1,104 @@
+# ============ 거리 규칙 ============
+
+preference_tables:
+  1: # 걷기 선호도 1 (최대 3.0km)
+    max_allowable_dist: 3.0
+    thresholds:
+      - max_dist: 0.2
+        score: 10.0
+      - max_dist: 0.6
+        score: 9.0
+      - max_dist: 1.2
+        score: 7.0
+      - max_dist: 2.0
+        score: 4.0
+      - max_dist: 3.0
+        score: 2.0
+  2: # 걷기 선호도 2 (최대 4.0km)
+    max_allowable_dist: 4.0
+    thresholds:
+      - max_dist: 0.3
+        score: 10.0
+      - max_dist: 0.8
+        score: 9.0
+      - max_dist: 1.6
+        score: 7.5
+      - max_dist: 2.8
+        score: 5.5
+      - max_dist: 4.0
+        score: 3.0
+  3: # 걷기 선호도 3 (최대 6.0km)
+    max_allowable_dist: 6.0
+    thresholds:
+      - max_dist: 0.5
+        score: 10.0
+      - max_dist: 1.2
+        score: 9.0
+      - max_dist: 2.5
+        score: 7.5
+      - max_dist: 4.5
+        score: 5.5
+      - max_dist: 6.0
+        score: 3.0
+  4: # 걷기 선호도 4 (최대 8.0km)
+    max_allowable_dist: 8.0
+    thresholds:
+      - max_dist: 0.8
+        score: 10.0
+      - max_dist: 1.8
+        score: 9.0
+      - max_dist: 3.5
+        score: 7.5
+      - max_dist: 6.0
+        score: 5.5
+      - max_dist: 8.0
+        score: 3.0
+  5: # 걷기 선호도 5 (최대 10.0km)
+    max_allowable_dist: 10.0
+    thresholds:
+      - max_dist: 1.0
+        score: 10.0
+      - max_dist: 2.5
+        score: 9.0
+      - max_dist: 5.0
+        score: 7.5
+      - max_dist: 7.5
+        score: 5.5
+      - max_dist: 10.0
+        score: 3.0
+
+# ============ 카테고리 규칙 ============
+
+category_rule:
+  purpose_primary_mapping:
+    "뷰티쇼핑":
+      - "드럭스토어"
+      - "백화점"
+    "문화관광":
+      - "문화시설"
+      - "관광명소"
+    "휴식":
+      - "문화시설"
+      - "관광명소"
+
+  purpose_keywords:
+    "뷰티쇼핑":
+      - "화장품"
+      - "쇼핑"
+      - "올리브영"
+      - "백화점"
+      - "뷰티"
+    "문화관광":
+      - "미술관"
+      - "전시"
+      - "공연"
+      - "박물관"
+      - "관광"
+      - "명소"
+      - "문화"
+    "휴식":
+      - "공원"
+      - "산책"
+      - "정원"
+      - "힐링"
+      - "휴식"
