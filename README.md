@@ -32,7 +32,13 @@ afterglow-ai/
 │   │   ├── __init__.py
 │   │   ├── category.py               # 카테고리 가산점 규칙
 │   │   ├── distance.py               # 거리 계산 및 필터링 규칙
-│   │   └── inference.py              # 전체 추천 및 코스 생성 흐름 조정 (apply_rule 등)
+│   │   ├── treatment.py              # 시술별 페널티 계산 및 필터링 규칙
+│   │   └── walk_preference.py        # 도보 선호도와 각 장소별 차이 계산 규칙
+│   │
+│   ├── service/
+│   │   ├── __init__.py
+│   │   ├── course.py                 # 점수 계산된 장소 후보를 통해 코스 생성
+│   │   └── inference.py              # 전체 추천 흐름 조정
 │   │
 │   ├── schemas/
 │   │   ├── __init__.py
