@@ -29,3 +29,6 @@ __pycache__/
 scripts/
 mdfile/
 tests/
+
+# 장소 데이터에 isMassageSpot, isHeatSource 행 추가하는 코드 작성 파일
+generate_is_row.ipynb
