@@ -57,7 +57,7 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
             "is_massage_spot": int(place.is_massage_spot) if place.is_massage_spot is not None else 0,
             "score": 0.0  # 규칙을 거치며 누적될 초기 점수
         }
-        
+
     daily_recommendations = []
 
     # == 카테고리 룰 적용 ==
