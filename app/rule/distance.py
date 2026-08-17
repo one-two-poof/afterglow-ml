@@ -1,15 +1,14 @@
 from typing import Dict, Any, Tuple
+
 from app.utils.distance import calculate_haversine_distance
 from app.utils.config_loader import get_rule_config
 
 def calculate_distance_score(distance_km: float, user_walk_preference: int) -> Tuple[float, bool]:
     """
-    통합 전역 설정에서 거리 룰 설정을 가져와 점수 및 제외 여부 산정
+    거리 룰 설정을 가져와 점수를 가산하는 함수
     """
     # 규칙 설정 가져오기
     rule_config = get_rule_config()
-    
-    # 규칙 설정에서 distance_rule 섹션만 추출
     distance_config = rule_config.get("distance_rule", {})
     tables = distance_config.get("preference_tables", {})
 
