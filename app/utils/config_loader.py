@@ -5,7 +5,7 @@ from typing import Dict, Any
 import yaml
 
 BASE_DIR = Path(os.getenv("PROJECT_BASE_DIR"))
-RULE_CONFIG_PATH = BASE_DIR / "app" / "config" / "rules.yaml"
+RULE_CONFIG_PATH = BASE_DIR / "app" / "config" / "rule_config.yaml"
 
 _GLOBAL_RULE_CONFIG: Dict[str, Any] = {}
 
