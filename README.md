@@ -53,9 +53,6 @@ afterglow-ai/
 │   └── model_server.py               # FastAPI 앱 생성, lifespan 설정, 라우터 등록
 │
 ├── data/                             # CSV 원천 및 가공 데이터
-├── mdfile/                           # API 및 모델 관련 상세 문서
-├── scripts/                          # 수집·정제·학습 스크립트
-├── tests/                            # 회귀 테스트
 ├── .github/workflows/                # GitHub Actions 배포 워크플로
 ├── requirements.txt
 └── README.md
