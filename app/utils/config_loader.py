@@ -1,8 +1,12 @@
 import os
-import yaml
+from pathlib import Path
 from typing import Dict, Any
 
-RULE_CONFIG_PATH = os.getenv("RULE_CONFIG_PATH")
+import yaml
+
+BASE_DIR = Path(os.getenv("PROJECT_BASE_DIR"))
+RULE_CONFIG_PATH = BASE_DIR / "app" / "config" / "rules.yaml"
+
 _GLOBAL_RULE_CONFIG: Dict[str, Any] = {}
 
 def load_rule_config() -> None:
