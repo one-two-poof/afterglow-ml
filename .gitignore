@@ -10,10 +10,6 @@
 
 # Generated data files; keep the data documentation tracked.
 data/*
-!data/README.md
-# aws 올라가야 하는 데이터 파일
-!data/gangnam_seocho_skin_hospitals_accommodations.csv
-!data/gangnam_seocho_places_drugstore_attraction_department_culture.csv
 
 # Runtime and build output
 *.log

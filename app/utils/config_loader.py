@@ -25,5 +25,4 @@ def get_rule_config() -> Dict[str, Any]:
     """
     메모리에 캐싱된 규칙 설정을 반환하는 공통 함수
     """
-    global _GLOBAL_RULE_CONFIG
     return _GLOBAL_RULE_CONFIG
