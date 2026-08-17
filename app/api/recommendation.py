@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.recommendation import RecommendationResponse, RecommendationRequest
 from app.config.database import get_db
-from app.rule.inference import apply_rule
+from app.service.inference import apply_rule
 
 # 애플리케이션 구동점에서 한 번에 등록할 추천 전용 라우터다.
 router = APIRouter(
