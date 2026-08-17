@@ -11,7 +11,8 @@ class Place(Base):
     # 숫자형 및 불리언 형태
     is_indoor = Column(Integer, default=0)                          # isIndoor
     walk_hard = Column(Integer, default=1)                          # walkHard
-    is_na = Column(Integer, default=0)                              # isNa
+    is_heat_source = Column(Integer, default=0)                     # isHeatSource
+    is_massage_spot = Column(Integer, default=0)                    # isMassageSpot
     
     # 카테고리 및 분류
     primary_type = Column(String, nullable=True)                    # primaryType
