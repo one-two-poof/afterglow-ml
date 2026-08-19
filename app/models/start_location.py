@@ -2,10 +2,13 @@ from sqlalchemy import Column, Integer, String, Float
 from app.config.database import Base
 
 class StartLocation(Base):
-    __tablename__ = "start_locations"                               # DB 테이블 이름
+    __tablename__ = "hospitals_accommodations"                               # DB 테이블 이름
 
-    # 기본 키 및 필수 정보
-    kakao_place_id = Column(Integer, primary_key=True, index=True)  # kakaoPlaceId
+    # 기본 키 id 추가
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+
+    # 필수 정보
+    kakao_place_id = Column(Integer, nullable=True, index=True)     # kakaoPlaceId
     place_name = Column(String, nullable=False)                     # placeName
     
     # 카테고리 및 분류

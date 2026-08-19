@@ -35,14 +35,14 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
     if not db_start_locations:
         raise ValueError("데이터베이스에 등록된 출발지 데이터가 없습니다.")
 
-    # 조회한 출발지 리스트를 빠르게 검색하기 위해 딕셔너리로 매핑 (kakao_place_id 기준)
-    start_places_dict = {int(loc.kakao_place_id): loc for loc in db_start_locations}
+    # 조회한 출발지 리스트를 빠르게 검색하기 위해 딕셔너리로 매핑 (id 기준)
+    start_places_dict = {int(loc.id): loc for loc in db_start_locations}
 
     # DB에서 가져온 후보 장소 데이터를 기존 로직이 요구하는 딕셔너리 구조로 매핑
     candidate_places: Dict[int, Dict[str, Any]] = {}
     
     for place in db_places:
-        place_id = int(place.kakao_place_id)
+        place_id = int(place.id)
         
         candidate_places[place_id] = {
             "place_name": place.place_name,
