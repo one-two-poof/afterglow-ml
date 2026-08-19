@@ -1,0 +1,219 @@
+# ============ 거리 규칙 ============
+
+preference_tables:
+  1: # 걷기 선호도 1 (최대 3.0km)
+    max_allowable_dist: 3.0
+    thresholds:
+      - max_dist: 0.2
+        score: 10.0
+      - max_dist: 0.6
+        score: 9.0
+      - max_dist: 1.2
+        score: 7.0
+      - max_dist: 2.0
+        score: 4.0
+      - max_dist: 3.0
+        score: 2.0
+  2: # 걷기 선호도 2 (최대 4.0km)
+    max_allowable_dist: 4.0
+    thresholds:
+      - max_dist: 0.3
+        score: 10.0
+      - max_dist: 0.8
+        score: 9.0
+      - max_dist: 1.6
+        score: 7.5
+      - max_dist: 2.8
+        score: 5.5
+      - max_dist: 4.0
+        score: 3.0
+  3: # 걷기 선호도 3 (최대 6.0km)
+    max_allowable_dist: 6.0
+    thresholds:
+      - max_dist: 0.5
+        score: 10.0
+      - max_dist: 1.2
+        score: 9.0
+      - max_dist: 2.5
+        score: 7.5
+      - max_dist: 4.5
+        score: 5.5
+      - max_dist: 6.0
+        score: 3.0
+  4: # 걷기 선호도 4 (최대 8.0km)
+    max_allowable_dist: 8.0
+    thresholds:
+      - max_dist: 0.8
+        score: 10.0
+      - max_dist: 1.8
+        score: 9.0
+      - max_dist: 3.5
+        score: 7.5
+      - max_dist: 6.0
+        score: 5.5
+      - max_dist: 8.0
+        score: 3.0
+  5: # 걷기 선호도 5 (최대 10.0km)
+    max_allowable_dist: 10.0
+    thresholds:
+      - max_dist: 1.0
+        score: 10.0
+      - max_dist: 2.5
+        score: 9.0
+      - max_dist: 5.0
+        score: 7.5
+      - max_dist: 7.5
+        score: 5.5
+      - max_dist: 10.0
+        score: 3.0
+
+# ============ 카테고리 규칙 ============
+
+category_rule:
+  weights:
+    primary_match: 6.0    # 주력 카테고리(primary_category) 일치 시 가산점
+    keyword_match: 3.0    # 상세 카테고리 키워드 포함 시 가산점
+  
+  purpose_primary_mapping:
+    "뷰티쇼핑":
+      - "드럭스토어"
+      - "백화점"
+    "문화관광":
+      - "문화시설"
+      - "관광명소"
+    "휴식":
+      - "문화시설"
+      - "관광명소"
+
+  purpose_keywords:
+    "뷰티쇼핑":
+      - "화장품"
+      - "쇼핑"
+      - "올리브영"
+      - "백화점"
+      - "뷰티"
+    "문화관광":
+      - "미술관"
+      - "전시"
+      - "공연"
+      - "박물관"
+      - "관광"
+      - "명소"
+      - "문화"
+    "휴식":
+      - "공원"
+      - "산책"
+      - "정원"
+      - "힐링"
+      - "휴식"
+
+# ============ 시술 규칙 ============
+
+treatment_rule:
+  # 위반 시 차감할 페널티 점수
+  penalty_score: -8.0
+
+  # max_day: 시술일로부터 적용되는 일수 (예: 0~7일 -> max_day: 7)
+  # action: "BLOCK" (후보군에서 즉시 제외), "PENALTY" (점수 차감)
+  rules:
+    "리프팅":
+      high_activity:
+        - { day_range: [0, 2], action: "PENALTY" }
+      outdoor_exposure:
+        - { day_range: [0, 7], action: "PENALTY" }
+      heat_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      massage_pressure:
+        - { day_range: [0, 7], action: "PENALTY" }
+
+    "보톡스":
+      high_activity:
+        - { day_range: [0, 0], action: "BLOCK" }
+        - { day_range: [1, 7], action: "PENALTY" }
+      outdoor_exposure:
+      heat_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      massage_pressure:
+        - { day_range: [0, 7], action: "BLOCK" }
+
+    "필러":
+      high_activity:
+        - { day_range: [0, 7], action: "PENALTY" }
+      outdoor_exposure:
+      heat_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      massage_pressure:
+        - { day_range: [0, 7], action: "BLOCK" }
+
+    "스킨부스터":
+      high_activity:
+        - { day_range: [0, 7], action: "PENALTY" }
+      outdoor_exposure:
+        - { day_range: [0, 2], action: "BLOCK" }
+        - { day_range: [3, 7], action: "PENALTY" }
+      heat_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      massage_pressure:
+        - { day_range: [0, 7], action: "PENALTY" }
+
+    "윤곽/체형주사":
+      high_activity:
+        - { day_range: [0, 7], action: "PENALTY" }
+      outdoor_exposure:
+      heat_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      massage_pressure:
+        - { day_range: [0, 7], action: "PENALTY" }
+
+    "필링":
+      high_activity:
+        - { day_range: [0, 7], action: "BLOCK" }
+      outdoor_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      heat_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      massage_pressure:
+        - { day_range: [0, 3], action: "PENALTY" }
+
+    "피부레이저":
+      high_activity:
+        - { day_range: [0, 3], action: "PENALTY" }
+      outdoor_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      heat_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      massage_pressure:
+        - { day_range: [0, 3], action: "PENALTY" }
+
+    "피부관리":
+      high_activity:
+      outdoor_exposure:
+      heat_exposure:
+        - { day_range: [0, 7], action: "PENALTY" }
+      massage_pressure:
+
+    "제모":
+      high_activity:
+      outdoor_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      heat_exposure:
+        - { day_range: [0, 7], action: "BLOCK" }
+      massage_pressure:
+
+    "비만(약처방)":
+      high_activity:
+      outdoor_exposure:
+      heat_exposure:
+      massage_pressure:
+
+# ============ 도보 선호도 규칙 ============
+
+walk_preference_rule:
+  # user_walk_preference와 place의 walk_hard 차이에 따른 점수 설정
+  # 차이 = abs(user_walk_preference - walk_hard)
+  score_mapping:
+    0: 5.0     # 완벽히 일치 (큰 가산점)
+    1: 2.0     # 소폭 일치
+    2: 0.0     # 중립 (영향 없음)
+    3: -6.0    # 꽤 큰 불일치 (페널티)
+    4: -10.0   # 극단적 불일치 (큰 페널티)
