@@ -67,7 +67,8 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
     # == 도보 선호도 룰 적용 ==
     candidate_places =  apply_walk_preference_rule(request.user_walk_preference, candidate_places)
 
-    aggregated_courses: Dict[str, Dict[str, Any]] = {}
+    # rank별로 날짜별 일정을 모으기 위한 구조
+    rank_aggregated_data: Dict[int, Dict[str, Any]] = {}
 
     # 시작일부터 종료일까지 하루씩 순회
     delta = request.trip_end_date - request.trip_start_date
@@ -106,44 +107,39 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         )
         
         # 규칙 적용된 장소 후보군을 통해 코스 생성
-        daily_generated_courses = generate_courses(scored_candidates, current_date, start_lat, start_lng)
+        daily_schedules = generate_courses(
+            scored_candidates=scored_candidates, 
+            current_date=current_date, 
+            start_lat=start_lat, 
+            start_lng=start_lng,
+            start_name=start_name
+        )
 
-        # 생성된 코스들을 순회하며 최상단 구조(코스 기준)에 맞게 병합
-        for course in daily_generated_courses:
-            course_id = course.course_id
+        # 순위별(인덱스 기준 0->1위, 1->2위...)로 스케줄 및 거리 누적
+        for rank_idx, schedule in enumerate(daily_schedules):
+            current_rank = rank_idx + 1 # 1위, 2위, 3위
             
-            # 만약 아직 등록되지 않은 코스 ID라면 기본 틀 생성
-            if course_id not in aggregated_courses:
-                aggregated_courses[course_id] = {
-                    "rank": course.rank,
-                    "course_id": course_id,
-                    "total_distance_km": 0.0,
+            if current_rank not in rank_aggregated_data:
+                rank_aggregated_data[current_rank] = {
+                    "total_distance": 0.0,
                     "daily_schedules": []
                 }
             
-            # 총 거리 누적
-            aggregated_courses[course_id]["total_distance_km"] += course.total_distance_km
+            # 해당 일정의 총 거리 계산 (place들의 dist_to_prev_km 합산)
+            day_distance = sum(p.dist_to_prev_km for p in schedule.places)
+            rank_aggregated_data[current_rank]["total_distance"] += day_distance
+            rank_aggregated_data[current_rank]["daily_schedules"].append(schedule)
 
-            # 해당 날짜의 일정 객체 생성
-            daily_schedule = DailySchedule(
-                date=current_date,
-                start_location=StartLocation(name=start_name, mapX=start_lat, mapY=start_lng),
-                treatment=request.treatmentList,  # 필요시 해당 날짜에 맞는 시술만 필터링해서 넣을 수도 있습니다
-                places=course.places
-            )
-            
-            # 해당 코스의 일자에 추가
-            aggregated_courses[course_id]["daily_schedules"].append(daily_schedule)
-
-    # 최종 Pydantic 모델 리스트로 변환
-    recommended_courses = [
-        RecommendedCourse(
-            rank=data["rank"],
-            course_id=data["course_id"],
-            total_distance_km=round(data["total_distance_km"], 2),
+    # 최종 추천 응답 생성 (RecommendedCourse 스키마 준수)
+    daily_recommendations = []
+    for rank, data in rank_aggregated_data.items():
+        recommended_course = RecommendedCourse(
+            rank=rank,
+            course_id=f"C{str(rank).zfill(5)}", # C00001, C00002 등
+            treatment=request.treatmentList,
+            total_distance_km=round(data["total_distance"], 2),
             daily_schedules=data["daily_schedules"]
         )
-        for data in aggregated_courses.values()
-    ]
+        daily_recommendations.append(recommended_course)
 
-    return RecommendationResponse(recommended_courses=recommended_courses)
+    return RecommendationResponse(daily_recommendations=daily_recommendations)
