@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.recommendation import router as recommendation_router
 from app.api.health import router as health_router
@@ -30,6 +31,14 @@ app = FastAPI(
     description="시술 정보와 유저 성향을 기반으로 최적의 코스를 추천해 주는 API",
     version="1.0.0",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(recommendation_router)
