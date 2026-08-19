@@ -63,17 +63,17 @@ class PlaceItem(BaseModel):
     walk_hard: int = Field(..., description="걷기 난이도 (1 ~ 5)")
     dist_to_prev_km: float = Field(..., description="이전 장소로부터의 거리 (km)")
 
+class DailySchedule(BaseModel):
+    date: datetime.date = Field(..., description="해당 날짜 (YYYY-MM-DD)")
+    start_location: StartLocation = Field(..., description="해당 날짜의 출발점 정보")
+    treatment: List[TreatmentResponse] = Field(default=[], description="해당 일정 관련 시술 목록")
+    places: List[PlaceItem] = Field(..., description="해당 날짜의 방문 장소 리스트")
+
 class RecommendedCourse(BaseModel):
     rank: int = Field(..., description="AI 추천 순위 (1 ~ 3)")
     course_id: str = Field(..., description="추천 코스 고유 ID")
     total_distance_km: float = Field(..., description="코스 내 전체 이동 거리 합산 (km)")
-    places: List[PlaceItem] = Field(..., description="코스에 포함된 장소 리스트")
-
-class DailyRecommendation(BaseModel):
-    date: datetime.date = Field(..., description="해당 날짜 (YYYY-MM-DD)")
-    start_location: StartLocation = Field(..., description="해당 날짜의 출발점 정보")
-    treatment: List[TreatmentResponse] = Field(..., description="해당 일정 관련 시술 목록")
-    recommended_courses: List[RecommendedCourse] = Field(..., description="해당 날짜의 추천 코스 리스트")
+    daily_schedules: List[DailySchedule] = Field(..., description="코스에 포함된 날짜별 일정 리스트")
 
 class RecommendationResponse(BaseModel):
-    daily_recommendations: List[DailyRecommendation] = Field(..., description="날짜별 추천 코스 리스트")
+    daily_recommendations: List[RecommendedCourse] = Field(..., description="날짜별 추천 코스 리스트")

@@ -4,9 +4,10 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from app.api.recommendation import (
-    DailyRecommendation,
+    DailySchedule,
     RecommendationRequest,
     RecommendationResponse,
+    RecommendedCourse,
     StartLocation,
 )
 from app.repositories.place import PlaceRepository
@@ -65,6 +66,8 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
 
     # == 도보 선호도 룰 적용 ==
     candidate_places =  apply_walk_preference_rule(request.user_walk_preference, candidate_places)
+
+    aggregated_courses: Dict[str, Dict[str, Any]] = {}
     
     # 시작일부터 종료일까지 하루씩 순회
     delta = request.trip_end_date - request.trip_start_date
@@ -103,15 +106,44 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         )
         
         # 규칙 적용된 장소 후보군을 통해 코스 생성
-        recommended_courses = generate_courses(scored_candidates, current_date, start_lat, start_lng)
+        daily_generated_courses = generate_courses(scored_candidates, current_date, start_lat, start_lng)
 
-        # 날짜별 결과 누적
-        daily_rec = DailyRecommendation(
-            date=current_date,
-            start_location=StartLocation(name=start_name, mapX=start_lat, mapY=start_lng),
-            treatment=request.treatmentList,
-            recommended_courses=recommended_courses
+        # 생성된 코스들을 순회하며 최상단 구조(코스 기준)에 맞게 병합
+        for course in daily_generated_courses:
+            course_id = course.course_id
+            
+            # 만약 아직 등록되지 않은 코스 ID라면 기본 틀 생성
+            if course_id not in aggregated_courses:
+                aggregated_courses[course_id] = {
+                    "rank": course.rank,
+                    "course_id": course_id,
+                    "total_distance_km": 0.0,
+                    "daily_schedules": []
+                }
+            
+            # 총 거리 누적
+            aggregated_courses[course_id]["total_distance_km"] += course.total_distance_km
+
+            # 해당 날짜의 일정 객체 생성
+            daily_schedule = DailySchedule(
+                date=current_date,
+                start_location=StartLocation(name=start_name, mapX=start_lat, mapY=start_lng),
+                treatment=request.treatmentList,  # 필요시 해당 날짜에 맞는 시술만 필터링해서 넣을 수도 있습니다
+                places=course.places
+            )
+            
+            # 해당 코스의 일자에 추가
+            aggregated_courses[course_id]["daily_schedules"].append(daily_schedule)
+
+    # 최종 Pydantic 모델 리스트로 변환
+    recommended_courses = [
+        RecommendedCourse(
+            rank=data["rank"],
+            course_id=data["course_id"],
+            total_distance_km=round(data["total_distance_km"], 2),
+            daily_schedules=data["daily_schedules"]
         )
-        daily_recommendations.append(daily_rec)
+        for data in aggregated_courses.values()
+    ]
 
-    return RecommendationResponse(daily_recommendations=daily_recommendations)
+    return RecommendationResponse(recommended_courses=recommended_courses)
