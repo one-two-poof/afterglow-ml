@@ -8,7 +8,7 @@ def apply_walk_preference_rule(user_walk_preference: int, candidates: Dict[int, 
     """
     # 규칙 설정 가져오기
     rule_config = get_rule_config()
-    walk_preference_config = rule_config.get("intensity_rule")
+    walk_preference_config = rule_config.get("walk_preference_rule")
     score_mapping = walk_preference_config.get("score_mapping")
 
     for place_id, place_info in candidates.items():
