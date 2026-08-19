@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.recommendation import router as recommendation_router
+from app.api.feedback import router as feedback_router
 from app.api.health import router as health_router
 from app.utils.config_loader import load_rule_config
 
@@ -42,4 +43,5 @@ app.add_middleware(
 )
 
 app.include_router(recommendation_router)
+app.include_router(feedback_router)
 app.include_router(health_router)

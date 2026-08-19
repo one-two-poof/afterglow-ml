@@ -26,6 +26,17 @@ class RecommendedCourseRepository:
         )
         return self.db.scalar(statement)
 
+    def get_owned_by_id(
+        self,
+        recommended_course_id: int,
+        user_id: int,
+    ) -> RecommendedCourse | None:
+        statement = select(RecommendedCourse).where(
+            RecommendedCourse.id == recommended_course_id,
+            RecommendedCourse.user_id == user_id,
+        )
+        return self.db.scalar(statement)
+
     def list_by_user_id(
         self,
         user_id: int,
