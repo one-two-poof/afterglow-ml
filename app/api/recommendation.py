@@ -15,7 +15,7 @@ router = APIRouter(
 def recommen_courses(
     request: RecommendationRequest, 
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # current_user: dict = Depends(get_current_user)
 ):
     try:
         rule_result = apply_rule(request, db=db)
