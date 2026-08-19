@@ -54,19 +54,23 @@ def apply_treatment_rule(
                 continue
 
             # 제약 항목별 확인
-            for feature_key, condition in rules_for_treatment.items():
-                if not condition:
+            for feature_key, conditions in rules_for_treatment.items():
+                if not conditions:
                     continue
-                
-                max_day = condition.get("max_day", 0)
-                action = condition.get("action")
 
-                if elapsed_days <= max_day and place_features.get(feature_key, False):
-                    if action == "BLOCK":
-                        is_blocked = True
-                        break
-                    elif action == "PENALTY":
-                        place_penalty += penalty_score
+                for condition in conditions:
+                    max_day = condition.get("max_day", 0)
+                    action = condition.get("action")
+
+                    if elapsed_days <= max_day and place_features.get(feature_key, False):
+                        if action == "BLOCK":
+                            is_blocked = True
+                            break
+                        elif action == "PENALTY":
+                            place_penalty += penalty_score
+
+                if is_blocked:
+                    break
 
             if is_blocked:
                 break
