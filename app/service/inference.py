@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from app.api.recommendation import (
+from app.schemas.recommendation import (
     DailySchedule,
     RecommendationRequest,
     RecommendationResponse,
@@ -68,7 +68,7 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
     candidate_places =  apply_walk_preference_rule(request.user_walk_preference, candidate_places)
 
     aggregated_courses: Dict[str, Dict[str, Any]] = {}
-    
+
     # 시작일부터 종료일까지 하루씩 순회
     delta = request.trip_end_date - request.trip_start_date
     for i in range(delta.days + 1):
