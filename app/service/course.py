@@ -1,6 +1,5 @@
 import datetime
 from typing import List
-from pydantic import BaseModel
 
 from app.schemas.recommendation import PlaceItem, DailySchedule, StartLocation
 from app.utils.distance import calculate_haversine_distance

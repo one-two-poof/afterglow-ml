@@ -59,7 +59,7 @@ jobs:
             sudo systemctl restart afterglow-ml
             sudo systemctl is-active afterglow-ml
             for i in $(seq 1 30); do
-              if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+              if curl -sf http://127.0.0.1:8000/api/health > /dev/null; then
                 echo
                 echo "Health check OK"
                 rm -rf app.old
