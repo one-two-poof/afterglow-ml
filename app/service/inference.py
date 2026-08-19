@@ -7,6 +7,7 @@ from app.schemas.recommendation import (
     RecommendationRequest,
     RecommendationResponse,
     RecommendedCourse,
+    TreatmentResponse,
 )
 from app.repositories.place import PlaceRepository
 from app.repositories.start_location import StartLocationRepository
@@ -134,7 +135,10 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         recommended_course = RecommendedCourse(
             rank=rank,
             course_id=f"C{str(rank).zfill(5)}", # C00001, C00002 등
-            treatment=request.treatmentList,
+            treatment=[
+                TreatmentResponse.model_validate(item.model_dump())
+                for item in request.treatmentList
+            ],
             total_distance_km=round(data["total_distance"], 2),
             daily_schedules=data["daily_schedules"]
         )
