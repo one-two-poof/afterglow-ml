@@ -68,6 +68,7 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
 
     # rank별로 날짜별 일정을 모으기 위한 구조
     rank_aggregated_data: Dict[int, Dict[str, Any]] = {}
+    trip_used_place_ids: set[int] = set()
 
     # 시작일부터 종료일까지 하루씩 순회
     delta = request.trip_end_date - request.trip_start_date
@@ -116,8 +117,14 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
             current_date=current_date, 
             start_lat=start_lat, 
             start_lng=start_lng,
-            start_name=start_name
+            start_name=start_name,
+            trip_used_place_ids=trip_used_place_ids,
         )
+
+        if len(daily_schedules) != 3:
+            raise ValueError(
+                "중복되지 않는 장소가 부족하여 추천 코스 3개를 만들 수 없습니다."
+            )
 
         # 순위별(인덱스 기준 0->1위, 1->2위...)로 스케줄 및 거리 누적
         for rank_idx, schedule in enumerate(daily_schedules):

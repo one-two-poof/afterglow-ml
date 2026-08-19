@@ -9,7 +9,8 @@ def generate_courses(
     current_date: datetime.date, 
     start_lat: float, 
     start_lng: float,
-    start_name: str
+    start_name: str,
+    trip_used_place_ids: set[int],
 ) -> List[DailySchedule]:
     """
     점수가 반영된 후보 장소들을 바탕으로 특정 날짜의 DailySchedule 리스트를 생성하는 함수
@@ -21,7 +22,6 @@ def generate_courses(
     )
 
     daily_schedules = []
-    used_non_drugstore_ids = set()
     
     for rank in range(1, 4): # 코스 생성 루프 (1위, 2위, 3위 코스 대응)
         place_items = []
@@ -36,13 +36,14 @@ def generate_courses(
             selected_place_id = None
 
             for place_id, place in sorted_places:
+                if place_id in trip_used_place_ids:
+                    continue
+
                 place_category = place["place_category"]
                 category_detail = place.get("category_detail") or ""
                 is_drugstore = place_category == "드럭스토어"
 
                 if place_id in selected_place_ids:
-                    continue
-                if not is_drugstore and place_id in used_non_drugstore_ids:
                     continue
                 if is_drugstore and has_drugstore:
                     continue
@@ -95,11 +96,7 @@ def generate_courses(
         if len(place_items) <= 2 or len(used_place_categories) < 2:
             continue
 
-        used_non_drugstore_ids.update(
-            place_id
-            for place_id in selected_place_ids
-            if scored_candidates[place_id]["place_category"] != "드럭스토어"
-        )
+        trip_used_place_ids.update(selected_place_ids)
 
         schedule = DailySchedule(
             date=current_date,
