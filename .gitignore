@@ -25,10 +25,11 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
+# Cursor IDE (추가한 부분)
+.cursor/
+.cursorrules
+
 # 기타 등등
 scripts/
 mdfile/
 tests/
-
-# 장소 데이터에 isMassageSpot, isHeatSource 행 추가하는 코드 작성 파일
-generate_is_row.ipynb
