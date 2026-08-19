@@ -4,8 +4,11 @@ from app.config.database import Base
 class Place(Base):
     __tablename__ = "attractions"                                        # DB 테이블 이름
 
-    # 기본 키 및 필수 정보
-    kakao_place_id = Column(Integer, primary_key=True, index=True)  # kakaoPlaceId
+    # 진짜 기본 키(PK, Auto Increment 등)인 id 추가
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+
+    # 필수 정보
+    kakao_place_id = Column(Integer, nullable=True, index=True)     # kakaoPlaceId
     place_name = Column(String, nullable=False)                     # placeName
 
     # 숫자형 및 불리언 형태
