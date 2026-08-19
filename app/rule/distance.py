@@ -9,8 +9,7 @@ def calculate_distance_score(distance_km: float, user_walk_preference: int) -> T
     """
     # 규칙 설정 가져오기
     rule_config = get_rule_config()
-    distance_config = rule_config.get("distance_rule", {})
-    tables = distance_config.get("preference_tables", {})
+    tables = rule_config.get("preference_tables", {})
 
     # user_walk_preference에 맞는 규칙 설정 테이블 가져오기
     pref_data = tables.get(user_walk_preference)
