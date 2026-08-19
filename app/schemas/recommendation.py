@@ -69,6 +69,7 @@ class DailySchedule(BaseModel):
     places: List[PlaceItem] = Field(..., description="해당 날짜의 방문 장소 리스트")
 
 class RecommendedCourse(BaseModel):
+    recommended_course_id: int = Field(..., description="저장된 추천 코스의 DB ID")
     rank: int = Field(..., description="AI 추천 순위 (1 ~ 3)")
     course_id: str = Field(..., description="추천 코스 고유 ID")
     treatment: List[TreatmentResponse] = Field(default=[], description="해당 일정 관련 시술 목록")

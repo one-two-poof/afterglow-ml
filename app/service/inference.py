@@ -138,8 +138,9 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
     daily_recommendations = []
     for rank, data in rank_aggregated_data.items():
         recommended_course = RecommendedCourse(
+            recommended_course_id=0,
             rank=rank,
-            course_id=f"C{str(rank).zfill(5)}", # C00001, C00002 등
+            course_id=f"C{str(rank).zfill(5)}",
             treatment=[
                 TreatmentResponse.model_validate(item.model_dump())
                 for item in request.treatmentList
