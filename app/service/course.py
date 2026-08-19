@@ -1,12 +1,19 @@
 import datetime
 from typing import List
+from pydantic import BaseModel
 
-from app.api.recommendation import PlaceItem, DailySchedule, StartLocation  # 필요한 모델 임포트
+from app.schemas.recommendation import PlaceItem, DailySchedule, StartLocation
 from app.utils.distance import calculate_haversine_distance
 
-def generate_courses(scored_candidates: dict, current_date: datetime.date, start_lat: float, start_lng: float) -> list:
+def generate_courses(
+    scored_candidates: dict, 
+    current_date: datetime.date, 
+    start_lat: float, 
+    start_lng: float,
+    start_name: str
+) -> List[DailySchedule]:
     """
-    점수가 반영된 후보 장소들을 바탕으로 특정 날짜의 코스 후보군을 생성하는 함수
+    점수가 반영된 후보 장소들을 바탕으로 특정 날짜의 DailySchedule 리스트를 생성하는 함수
     """
     sorted_places = sorted(
         scored_candidates.values(), 
@@ -14,10 +21,9 @@ def generate_courses(scored_candidates: dict, current_date: datetime.date, start
         reverse=True
     )
 
-    daily_generated_courses = []
+    daily_schedules = []
     
-    for rank in range(1, 4): # 코스 생성 루프
-        course_id = f"course-{rank}"  # 날짜를 제외한 공통 코스 ID로 관리하거나 그대로 유지
+    for rank in range(1, 4): # 코스 생성 루프 (1위, 2위, 3위 코스 대응)
         place_items = []
         total_distance = 0.0
         used_categories_in_course = set()
@@ -69,12 +75,12 @@ def generate_courses(scored_candidates: dict, current_date: datetime.date, start
         if len(place_items) < 2:
             continue
 
-        # 임시로 해당 날짜의 코스 정보를 딕셔너리 형태로 반환 (apply_rule에서 병합하기 쉽게)
-        daily_generated_courses.append({
-            "rank": rank,
-            "course_id": f"C{str(rank).zfill(5)}",  # 예: C00001, C00002 등
-            "total_distance_km": round(total_distance, 2),
-            "places": place_items
-        })
+        schedule = DailySchedule(
+            date=current_date,
+            start_location=StartLocation(name=start_name, mapX=start_lat, mapY=start_lng),
+            places=place_items
+        )
+        
+        daily_schedules.append(schedule)
 
-    return daily_generated_courses
+    return daily_schedules
