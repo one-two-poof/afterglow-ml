@@ -4,11 +4,9 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from app.schemas.recommendation import (
-    DailySchedule,
     RecommendationRequest,
     RecommendationResponse,
     RecommendedCourse,
-    StartLocation,
 )
 from app.repositories.place import PlaceRepository
 from app.repositories.start_location import StartLocationRepository
