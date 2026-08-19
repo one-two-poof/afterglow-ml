@@ -70,8 +70,8 @@ def generate_courses(
                 
                 sorted_places.remove(selected_place)
 
-        # 장소가 2개 미만이면 이 코스는 스킵
-        if len(place_items) < 2:
+        # 장소가 2개 이하이면 이 코스는 스킵
+        if len(place_items) <= 2:
             continue
 
         schedule = DailySchedule(
