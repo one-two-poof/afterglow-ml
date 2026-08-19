@@ -118,86 +118,86 @@ treatment_rule:
   rules:
     "리프팅":
       high_activity:
-        - { day_range: [0, 2], action: "PENALTY" }
+        - { max_day: 2, action: "PENALTY" }
       outdoor_exposure:
-        - { day_range: [0, 7], action: "PENALTY" }
+        - { max_day: 7, action: "PENALTY" }
       heat_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       massage_pressure:
-        - { day_range: [0, 7], action: "PENALTY" }
+        - { max_day: 7, action: "PENALTY" }
 
     "보톡스":
       high_activity:
-        - { day_range: [0, 0], action: "BLOCK" }
-        - { day_range: [1, 7], action: "PENALTY" }
+        - { max_day: 0, action: "BLOCK" }
+        - { max_day: 7, action: "PENALTY" }
       outdoor_exposure:
       heat_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       massage_pressure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
 
     "필러":
       high_activity:
-        - { day_range: [0, 7], action: "PENALTY" }
+        - { max_day: 7, action: "PENALTY" }
       outdoor_exposure:
       heat_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       massage_pressure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
 
     "스킨부스터":
       high_activity:
-        - { day_range: [0, 7], action: "PENALTY" }
+        - { max_day: 7, action: "PENALTY" }
       outdoor_exposure:
-        - { day_range: [0, 2], action: "BLOCK" }
-        - { day_range: [3, 7], action: "PENALTY" }
+        - { max_day: 2, action: "BLOCK" }
+        - { max_day: 7, action: "PENALTY" }
       heat_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       massage_pressure:
-        - { day_range: [0, 7], action: "PENALTY" }
+        - { max_day: 7, action: "PENALTY" }
 
     "윤곽/체형주사":
       high_activity:
-        - { day_range: [0, 7], action: "PENALTY" }
+        - { max_day: 7, action: "PENALTY" }
       outdoor_exposure:
       heat_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       massage_pressure:
-        - { day_range: [0, 7], action: "PENALTY" }
+        - { max_day: 7, action: "PENALTY" }
 
     "필링":
       high_activity:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       outdoor_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       heat_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       massage_pressure:
-        - { day_range: [0, 3], action: "PENALTY" }
+        - { max_day: 3, action: "PENALTY" }
 
     "피부레이저":
       high_activity:
-        - { day_range: [0, 3], action: "PENALTY" }
+        - { max_day: 3, action: "PENALTY" }
       outdoor_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       heat_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       massage_pressure:
-        - { day_range: [0, 3], action: "PENALTY" }
+        - { max_day: 3, action: "PENALTY" }
 
     "피부관리":
       high_activity:
       outdoor_exposure:
       heat_exposure:
-        - { day_range: [0, 7], action: "PENALTY" }
+        - { max_day: 7, action: "PENALTY" }
       massage_pressure:
 
     "제모":
       high_activity:
       outdoor_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       heat_exposure:
-        - { day_range: [0, 7], action: "BLOCK" }
+        - { max_day: 7, action: "BLOCK" }
       massage_pressure:
 
     "비만(약처방)":
