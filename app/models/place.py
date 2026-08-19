@@ -26,8 +26,6 @@ class Place(Base):
     category_group_name = Column(String, nullable=True)                         # categoryGroupName
 
     # 수치형 데이터
-    skin_treatment_confidence = Column(Float, nullable=True)                    # skinTreatmentConfidence
-    skin_treatment_signals = Column(String, nullable=True)                      # skinTreatmentSignals
     map_x = Column(Float, nullable=True)                                        # mapX
     map_y = Column(Float, nullable=True)                                        # mapY
 
