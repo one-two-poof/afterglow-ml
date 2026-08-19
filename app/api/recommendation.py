@@ -4,15 +4,19 @@ from sqlalchemy.orm import Session
 from app.schemas.recommendation import RecommendationResponse, RecommendationRequest
 from app.config.database import get_db
 from app.service.inference import apply_rule
+from app.utils.security import get_current_user
 
-# 애플리케이션 구동점에서 한 번에 등록할 추천 전용 라우터다.
 router = APIRouter(
     prefix="/api",
     tags=["recommendation"]
 )
 
 @router.post("/course", response_model=RecommendationResponse, summary="추천 코스 생성 API")
-def recommen_courses(request: RecommendationRequest, db: Session = Depends(get_db)):
+def recommen_courses(
+    request: RecommendationRequest, 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
     try:
         rule_result = apply_rule(request, db=db)
         return RecommendationResponse(
