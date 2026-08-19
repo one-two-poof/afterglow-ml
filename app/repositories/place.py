@@ -9,4 +9,4 @@ class PlaceRepository:
         return self.db.query(Place).all()
 
     def get_by_id(self, place_id: int):
-        return self.db.query(Place).filter(Place.kakao_place_id == place_id).first()
+        return self.db.query(Place).filter(Place.id == place_id).first()

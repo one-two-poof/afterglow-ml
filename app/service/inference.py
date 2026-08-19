@@ -75,7 +75,12 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         current_date = request.trip_start_date + datetime.timedelta(days=i)
         
         # 해당 날짜의 출발점 정보 찾기
-        start_info = next(item for item in request.daily_startList if item.date == current_date)
+        start_info = next(
+            (item for item in request.daily_startList if item.date == current_date),
+            None,
+        )
+        if start_info is None:
+            raise ValueError(f"{current_date} 날짜의 출발점 정보가 없습니다.")
 
         # DB를 통해 만든 dict에서 id를 통해 장소 정보 얻기
         start_loc_obj = start_places_dict.get(start_info.start_id)

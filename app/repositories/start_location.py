@@ -9,4 +9,4 @@ class StartLocationRepository:
         return self.db.query(StartLocation).all()
 
     def get_by_id(self, start_location_id: int):
-        return self.db.query(StartLocation).filter(StartLocation.kakao_place_id == start_location_id).first()
+        return self.db.query(StartLocation).filter(StartLocation.id == start_location_id).first()

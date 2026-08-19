@@ -19,11 +19,7 @@ def recommen_courses(
 ):
     try:
         rule_result = apply_rule(request, db=db)
-        return RecommendationResponse(
-            status="success",
-            message="성공적으로 날짜별 추천 코스를 생성했습니다.",
-            data=rule_result
-        )
+        return rule_result
     
     except ValueError as ve:
         print(f"추천 중 데이터 에러 발생: {str(ve)}")
