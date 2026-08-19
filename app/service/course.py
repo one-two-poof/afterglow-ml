@@ -15,64 +15,91 @@ def generate_courses(
     점수가 반영된 후보 장소들을 바탕으로 특정 날짜의 DailySchedule 리스트를 생성하는 함수
     """
     sorted_places = sorted(
-        scored_candidates.values(), 
-        key=lambda x: x["score"], 
+        scored_candidates.items(),
+        key=lambda item: item[1]["score"],
         reverse=True
     )
 
     daily_schedules = []
+    used_non_drugstore_ids = set()
     
     for rank in range(1, 4): # 코스 생성 루프 (1위, 2위, 3위 코스 대응)
         place_items = []
-        total_distance = 0.0
-        used_categories_in_course = set()
+        selected_place_ids = set()
+        used_category_details = set()
+        used_place_categories = set()
+        has_drugstore = False
         
         for idx in range(1, 4): # 코스 내 장소 선별 루프
+            is_last_place = idx == 3
             selected_place = None
+            selected_place_id = None
 
-            for p in sorted_places:
-                if p["place_category"] not in used_categories_in_course:
-                    selected_place = p
-                    break
-            
-            if not selected_place and sorted_places:
-                for p in sorted_places:
-                    if p["place_name"] not in [item.place_name for item in place_items]:
-                        selected_place = p
-                        break
-            
+            for place_id, place in sorted_places:
+                place_category = place["place_category"]
+                category_detail = place.get("category_detail") or ""
+                is_drugstore = place_category == "드럭스토어"
+
+                if place_id in selected_place_ids:
+                    continue
+                if not is_drugstore and place_id in used_non_drugstore_ids:
+                    continue
+                if is_drugstore and has_drugstore:
+                    continue
+                if category_detail and category_detail in used_category_details:
+                    continue
+                if (
+                    is_last_place
+                    and len(used_place_categories) < 2
+                    and place_category in used_place_categories
+                ):
+                    continue
+
+                selected_place_id = place_id
+                selected_place = place
+                break
+
             if not selected_place:
                 break
                 
-            if selected_place:
-                used_categories_in_course.add(selected_place["place_category"])
+            selected_category = selected_place["place_category"]
+            selected_detail = selected_place.get("category_detail") or ""
+            selected_place_ids.add(selected_place_id)
+            used_place_categories.add(selected_category)
+            if selected_detail:
+                used_category_details.add(selected_detail)
+            if selected_category == "드럭스토어":
+                has_drugstore = True
 
-                if idx == 1:
-                    prev_lat, prev_lng = start_lat, start_lng
-                else:
-                    prev_lat = place_items[-1].mapX
-                    prev_lng = place_items[-1].mapY
-                
-                dist_to_prev = calculate_haversine_distance(prev_lat, prev_lng, selected_place["mapX"], selected_place["mapY"])
-                total_distance += dist_to_prev
+            if idx == 1:
+                prev_lat, prev_lng = start_lat, start_lng
+            else:
+                prev_lat = place_items[-1].mapX
+                prev_lng = place_items[-1].mapY
 
-                place_item = PlaceItem(
-                    visit_order=len(place_items) + 1,
-                    place_name=selected_place["place_name"],
-                    place_category=selected_place["place_category"],
-                    mapX=selected_place["mapX"],
-                    mapY=selected_place["mapY"],
-                    is_indoor=selected_place["is_indoor"],
-                    walk_hard=selected_place["walk_hard"],
-                    dist_to_prev_km=round(dist_to_prev, 2)
-                )
-                place_items.append(place_item)
-                
-                sorted_places.remove(selected_place)
+            dist_to_prev = calculate_haversine_distance(prev_lat, prev_lng, selected_place["mapX"], selected_place["mapY"])
+
+            place_item = PlaceItem(
+                visit_order=len(place_items) + 1,
+                place_name=selected_place["place_name"],
+                place_category=selected_category,
+                mapX=selected_place["mapX"],
+                mapY=selected_place["mapY"],
+                is_indoor=selected_place["is_indoor"],
+                walk_hard=selected_place["walk_hard"],
+                dist_to_prev_km=round(dist_to_prev, 2)
+            )
+            place_items.append(place_item)
 
         # 장소가 2개 이하이면 이 코스는 스킵
-        if len(place_items) <= 2:
+        if len(place_items) <= 2 or len(used_place_categories) < 2:
             continue
+
+        used_non_drugstore_ids.update(
+            place_id
+            for place_id in selected_place_ids
+            if scored_candidates[place_id]["place_category"] != "드럭스토어"
+        )
 
         schedule = DailySchedule(
             date=current_date,
