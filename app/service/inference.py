@@ -140,7 +140,7 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         recommended_course = RecommendedCourse(
             recommended_course_id=0,
             rank=rank,
-            course_id=f"C{str(rank).zfill(5)}",
+            course_id="",
             treatment=[
                 TreatmentResponse.model_validate(item.model_dump())
                 for item in request.treatmentList

@@ -64,5 +64,7 @@ def save_recommendations(
         )
         repository.add(record)
         course.recommended_course_id = record.id
+        course.course_id = str(record.id)
+        record.course_id = course.course_id
 
     return response
