@@ -217,3 +217,16 @@ walk_preference_rule:
     2: 0.0     # 중립 (영향 없음)
     3: -6.0    # 꽤 큰 불일치 (페널티)
     4: -10.0   # 극단적 불일치 (큰 페널티)
+
+# ============ 코스 다양성 (MMR) ============
+# mmr = lambda * 기존점수 - (1 - lambda) * penalty_scale * (카테고리유사도*w + 거리유사도*w)
+
+mmr_rule:
+  lambda: 0.65
+  penalty_scale: 12.0
+  category_weight: 0.5
+  distance_weight: 0.5
+  same_detail_similarity: 1.0
+  same_category_similarity: 0.6
+  near_km: 0.4    # 이 거리 이하면 거리 유사도 1.0
+  far_km: 1.5     # 이 거리 이상이면 거리 유사도 0.0
