@@ -1,6 +1,7 @@
 import datetime
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from app.rule.distance import calculate_distance_score
 from app.schemas.recommendation import PlaceItem, DailySchedule, StartLocation
 from app.utils.config_loader import get_rule_config
 from app.utils.distance import calculate_haversine_distance
@@ -11,15 +12,19 @@ Coord = Tuple[float, float]
 
 def _mmr_config() -> Dict[str, Any]:
     config = get_rule_config().get("mmr_rule", {})
+    inter_course_weight = config.get("inter_course_weight", config.get("distance_weight", 0.4))
     return {
         "lambda": float(config.get("lambda", 0.65)),
-        "penalty_scale": float(config.get("penalty_scale", 12.0)),
-        "category_weight": float(config.get("category_weight", 0.5)),
-        "distance_weight": float(config.get("distance_weight", 0.5)),
+        "penalty_scale": float(config.get("penalty_scale", 1.2)),
+        "category_weight": float(config.get("category_weight", 0.7)),
+        "compactness_weight": float(config.get("compactness_weight", 1.2)),
+        "inter_course_weight": float(inter_course_weight),
         "same_detail_similarity": float(config.get("same_detail_similarity", 1.0)),
-        "same_category_similarity": float(config.get("same_category_similarity", 0.6)),
-        "near_km": float(config.get("near_km", 0.4)),
-        "far_km": float(config.get("far_km", 1.5)),
+        "same_category_similarity": float(config.get("same_category_similarity", 0.55)),
+        "near_km": float(config.get("near_km", 0.3)),
+        "far_km": float(config.get("far_km", 1.0)),
+        "inter_course_near_km": float(config.get("inter_course_near_km", 0.15)),
+        "inter_course_far_km": float(config.get("inter_course_far_km", 0.6)),
     }
 
 
@@ -28,7 +33,10 @@ def _proximity_similarity(distance_km: float, near_km: float, far_km: float) -> 
         return 1.0
     if distance_km >= far_km:
         return 0.0
-    return 1.0 - (distance_km - near_km) / (far_km - near_km)
+    span = far_km - near_km
+    if span <= 0:
+        return 0.0
+    return 1.0 - (distance_km - near_km) / span
 
 
 def _category_similarity(
@@ -65,38 +73,51 @@ def _distance_similarity(
     )
 
 
+def _normalize_scores(scores: Sequence[float]) -> List[float]:
+    if not scores:
+        return []
+    min_score = min(scores)
+    max_score = max(scores)
+    if max_score - min_score < 1e-9:
+        return [1.0] * len(scores)
+    return [(score - min_score) / (max_score - min_score) for score in scores]
+
+
 def _mmr_score(
     relevance: float,
     category_sim: float,
-    distance_sim: float,
+    compactness: float,
+    inter_course_sim: float,
     config: Dict[str, Any],
 ) -> float:
-    redundancy = (
+    diversity_penalty = (
         config["category_weight"] * category_sim
-        + config["distance_weight"] * distance_sim
+        + config["inter_course_weight"] * inter_course_sim
     )
     return (
         config["lambda"] * relevance
-        - (1.0 - config["lambda"]) * config["penalty_scale"] * redundancy
+        + config["compactness_weight"] * compactness
+        - (1.0 - config["lambda"]) * config["penalty_scale"] * diversity_penalty
     )
 
 
 def _select_place_by_mmr(
     candidates: Iterable[PlaceEntry],
-    trip_used_place_ids: set[int],
+    excluded_place_ids: set[int],
     selected_place_ids: set[int],
     used_place_categories: set[str],
     used_category_details: set[str],
     has_drugstore: bool,
     is_last_place: bool,
-    reference_points: Sequence[Coord],
+    prev_points: Sequence[Coord],
+    other_course_points: Sequence[Coord],
+    user_walk_preference: int,
     config: Dict[str, Any],
 ) -> Optional[PlaceEntry]:
-    best_entry: Optional[PlaceEntry] = None
-    best_mmr = float("-inf")
+    eligible: List[Tuple[PlaceEntry, float, float, float, float]] = []
 
     for place_id, place in candidates:
-        if place_id in trip_used_place_ids or place_id in selected_place_ids:
+        if place_id in excluded_place_ids or place_id in selected_place_ids:
             continue
 
         place_category = place["place_category"]
@@ -110,6 +131,18 @@ def _select_place_by_mmr(
         ):
             continue
 
+        sequential_score = 0.0
+        if prev_points:
+            prev_lat, prev_lng = prev_points[-1]
+            dist_to_prev = calculate_haversine_distance(
+                prev_lat, prev_lng, place["mapX"], place["mapY"]
+            )
+            sequential_score, is_excluded = calculate_distance_score(
+                dist_to_prev, user_walk_preference
+            )
+            if is_excluded:
+                continue
+
         category_sim = _category_similarity(
             place,
             used_place_categories,
@@ -117,28 +150,100 @@ def _select_place_by_mmr(
             config["same_detail_similarity"],
             config["same_category_similarity"],
         )
-        distance_sim = _distance_similarity(
+        compactness = _distance_similarity(
             place,
-            reference_points,
+            prev_points,
             config["near_km"],
             config["far_km"],
         )
-        mmr = _mmr_score(place["score"], category_sim, distance_sim, config)
+        inter_course_sim = _distance_similarity(
+            place,
+            other_course_points,
+            config["inter_course_near_km"],
+            config["inter_course_far_km"],
+        )
+        eligible.append(
+            (
+                (place_id, place),
+                place["score"] + sequential_score,
+                category_sim,
+                compactness,
+                inter_course_sim,
+            )
+        )
 
+    if not eligible:
+        return None
+
+    normalized = _normalize_scores([item[1] for item in eligible])
+    best_entry: Optional[PlaceEntry] = None
+    best_mmr = float("-inf")
+
+    for (entry, _raw_score, category_sim, compactness, inter_course_sim), relevance in zip(
+        eligible, normalized
+    ):
+        mmr = _mmr_score(
+            relevance,
+            category_sim,
+            compactness,
+            inter_course_sim,
+            config,
+        )
         if mmr > best_mmr:
             best_mmr = mmr
-            best_entry = (place_id, place)
+            best_entry = entry
 
     return best_entry
 
 
+def _build_ordered_place_items(
+    selected_entries: Sequence[PlaceEntry],
+    start_lat: float,
+    start_lng: float,
+) -> List[PlaceItem]:
+    remaining = list(selected_entries)
+    items: List[PlaceItem] = []
+    prev_lat, prev_lng = start_lat, start_lng
+
+    while remaining:
+        next_idx = min(
+            range(len(remaining)),
+            key=lambda i: calculate_haversine_distance(
+                prev_lat,
+                prev_lng,
+                remaining[i][1]["mapX"],
+                remaining[i][1]["mapY"],
+            ),
+        )
+        _, place = remaining.pop(next_idx)
+        dist_to_prev = calculate_haversine_distance(
+            prev_lat, prev_lng, place["mapX"], place["mapY"]
+        )
+        items.append(
+            PlaceItem(
+                visit_order=len(items) + 1,
+                place_name=place["place_name"],
+                place_category=place["place_category"],
+                mapX=place["mapX"],
+                mapY=place["mapY"],
+                is_indoor=place["is_indoor"],
+                walk_hard=place["walk_hard"],
+                dist_to_prev_km=round(dist_to_prev, 2),
+            )
+        )
+        prev_lat, prev_lng = place["mapX"], place["mapY"]
+
+    return items
+
+
 def generate_courses(
-    scored_candidates: dict, 
-    current_date: datetime.date, 
-    start_lat: float, 
+    scored_candidates: dict,
+    current_date: datetime.date,
+    start_lat: float,
     start_lng: float,
     start_name: str,
-    trip_used_place_ids: set[int],
+    used_by_rank: Dict[int, set[int]],
+    user_walk_preference: int,
 ) -> List[DailySchedule]:
     """
     점수가 반영된 후보 장소들을 바탕으로 특정 날짜의 DailySchedule 리스트를 생성하는 함수
@@ -150,39 +255,38 @@ def generate_courses(
     )
     mmr_config = _mmr_config()
     daily_schedules = []
-    
-    for rank in range(1, 4): # 코스 생성 루프 (1위, 2위, 3위 코스 대응)
-        place_items = []
-        selected_place_ids = set()
-        used_category_details = set()
-        used_place_categories = set()
+    used_today: set[int] = set()
+
+    for rank in range(1, 4):
+        selected_entries: List[PlaceEntry] = []
+        selected_place_ids: set[int] = set()
+        used_category_details: set[str] = set()
+        used_place_categories: set[str] = set()
         has_drugstore = False
+        excluded_place_ids = used_by_rank.get(rank, set()) | used_today
         other_course_points = [
             (place.mapX, place.mapY)
             for schedule in daily_schedules
             for place in schedule.places
         ]
-        other_course_categories = {
-            place.place_category
-            for schedule in daily_schedules
-            for place in schedule.places
-        }
-        
-        for idx in range(1, 4): # 코스 내 장소 선별 루프
+
+        for idx in range(1, 4):
             is_last_place = idx == 3
-            selected_coords = [(item.mapX, item.mapY) for item in place_items]
-            # 첫 장소는 출발지 근접이 본점수에 이미 있으므로, 같은 날 다른 코스와의 거리만 본다.
-            reference_points = selected_coords + other_course_points
+            prev_points = [
+                (place["mapX"], place["mapY"]) for _, place in selected_entries
+            ]
 
             selected = _select_place_by_mmr(
                 candidates=sorted_places,
-                trip_used_place_ids=trip_used_place_ids,
+                excluded_place_ids=excluded_place_ids,
                 selected_place_ids=selected_place_ids,
-                used_place_categories=used_place_categories | other_course_categories,
+                used_place_categories=used_place_categories,
                 used_category_details=used_category_details,
                 has_drugstore=has_drugstore,
                 is_last_place=is_last_place,
-                reference_points=reference_points,
+                prev_points=prev_points,
+                other_course_points=other_course_points,
+                user_walk_preference=user_walk_preference,
                 config=mmr_config,
             )
 
@@ -198,39 +302,19 @@ def generate_courses(
                 used_category_details.add(selected_detail)
             if selected_category == "드럭스토어":
                 has_drugstore = True
+            selected_entries.append(selected)
 
-            if idx == 1:
-                prev_lat, prev_lng = start_lat, start_lng
-            else:
-                prev_lat = place_items[-1].mapX
-                prev_lng = place_items[-1].mapY
-
-            dist_to_prev = calculate_haversine_distance(prev_lat, prev_lng, selected_place["mapX"], selected_place["mapY"])
-
-            place_item = PlaceItem(
-                visit_order=len(place_items) + 1,
-                place_name=selected_place["place_name"],
-                place_category=selected_category,
-                mapX=selected_place["mapX"],
-                mapY=selected_place["mapY"],
-                is_indoor=selected_place["is_indoor"],
-                walk_hard=selected_place["walk_hard"],
-                dist_to_prev_km=round(dist_to_prev, 2)
-            )
-            place_items.append(place_item)
-
-        # 장소가 2개 이하이면 이 코스는 스킵
-        if len(place_items) <= 2 or len(used_place_categories) < 2:
+        if len(selected_entries) <= 2 or len(used_place_categories) < 2:
             continue
 
-        trip_used_place_ids.update(selected_place_ids)
+        used_today.update(selected_place_ids)
+        used_by_rank.setdefault(rank, set()).update(selected_place_ids)
 
         schedule = DailySchedule(
             date=current_date,
             start_location=StartLocation(name=start_name, mapX=start_lat, mapY=start_lng),
-            places=place_items
+            places=_build_ordered_place_items(selected_entries, start_lat, start_lng),
         )
-        
         daily_schedules.append(schedule)
 
     return daily_schedules

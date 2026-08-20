@@ -68,7 +68,7 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
 
     # rank별로 날짜별 일정을 모으기 위한 구조
     rank_aggregated_data: Dict[int, Dict[str, Any]] = {}
-    trip_used_place_ids: set[int] = set()
+    used_by_rank: Dict[int, set[int]] = {1: set(), 2: set(), 3: set()}
 
     # 시작일부터 종료일까지 하루씩 순회
     delta = request.trip_end_date - request.trip_start_date
@@ -113,12 +113,13 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         
         # 규칙 적용된 장소 후보군을 통해 코스 생성
         daily_schedules = generate_courses(
-            scored_candidates=scored_candidates, 
-            current_date=current_date, 
-            start_lat=start_lat, 
+            scored_candidates=scored_candidates,
+            current_date=current_date,
+            start_lat=start_lat,
             start_lng=start_lng,
             start_name=start_name,
-            trip_used_place_ids=trip_used_place_ids,
+            used_by_rank=used_by_rank,
+            user_walk_preference=request.user_walk_preference,
         )
 
         if len(daily_schedules) != 3:
