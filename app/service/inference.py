@@ -23,6 +23,9 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
     후보 장소와 출발지 정보를 모두 DB에서 조회하여 Rule을 적용시키는 함수
     """
     # PlaceRepository를 통해 후보 장소 데이터 전체 조회
+    # Application-level orchestrator: repositories load records, rule modules
+    # score/filter them, and course.py assembles the response. HTTP and commit
+    # concerns intentionally remain in api/recommendation.py.
     place_repo = PlaceRepository(db)
     db_places = place_repo.get_all()
 
@@ -68,6 +71,8 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
 
     # rank별로 날짜별 일정을 모으기 위한 구조
     rank_aggregated_data: Dict[int, Dict[str, Any]] = {}
+    # Shared across every rank and travel date. Once a place is used anywhere in
+    # this response it cannot appear again; changing this scope changes diversity.
     trip_used_place_ids: set[int] = set()
 
     # 시작일부터 종료일까지 하루씩 순회

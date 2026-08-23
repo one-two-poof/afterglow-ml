@@ -25,6 +25,8 @@ def get_current_user(
         )
 
     try:
+        # Never derive the accepted algorithm from the token header. The server
+        # configuration is the trust boundary for signature verification.
         payload = jwt.decode(
             token,
             SECRET_KEY,
