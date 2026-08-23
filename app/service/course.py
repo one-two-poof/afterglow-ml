@@ -28,6 +28,43 @@ def _mmr_config() -> Dict[str, Any]:
     }
 
 
+def _slot_entry(slots: Dict[str, Any], slot_index: int) -> Dict[str, Any]:
+    return slots.get(slot_index) or slots.get(str(slot_index)) or {}
+
+
+def _flow_config() -> Dict[str, Any]:
+    config = get_rule_config().get("course_flow_rule", {})
+    slots = config.get("slots", {})
+    parsed_slots: Dict[int, Dict[str, Any]] = {}
+    for slot_index in (1, 2, 3):
+        slot = _slot_entry(slots, slot_index)
+        parsed_slots[slot_index] = {
+            "keywords": list(slot.get("keywords", [])),
+            "bonus": float(slot.get("bonus", 0.0)),
+        }
+    return {
+        "slots": parsed_slots,
+        "shopping_keywords": list(config.get("shopping_keywords", [])),
+        "early_shopping_penalty": float(config.get("early_shopping_penalty", 0.0)),
+        "reorder_distance_weight": float(config.get("reorder_distance_weight", 1.0)),
+    }
+
+
+def _detail_matches(detail: str, keywords: Sequence[str]) -> bool:
+    return bool(detail) and any(keyword in detail for keyword in keywords)
+
+
+def _slot_score(place: Dict[str, Any], slot_index: int, flow: Dict[str, Any]) -> float:
+    detail = place.get("category_detail") or ""
+    slot = flow.get("slots", {}).get(slot_index, {})
+    score = 0.0
+    if _detail_matches(detail, slot.get("keywords", [])):
+        score += float(slot.get("bonus", 0.0))
+    if slot_index == 1 and _detail_matches(detail, flow.get("shopping_keywords", [])):
+        score += float(flow.get("early_shopping_penalty", 0.0))
+    return score
+
+
 def _proximity_similarity(distance_km: float, near_km: float, far_km: float) -> float:
     if distance_km <= near_km:
         return 1.0
@@ -113,7 +150,10 @@ def _select_place_by_mmr(
     other_course_points: Sequence[Coord],
     user_walk_preference: int,
     config: Dict[str, Any],
+    slot_index: int = 1,
+    flow: Optional[Dict[str, Any]] = None,
 ) -> Optional[PlaceEntry]:
+    flow = flow if flow is not None else _flow_config()
     eligible: List[Tuple[PlaceEntry, float, float, float, float]] = []
 
     for place_id, place in candidates:
@@ -165,7 +205,7 @@ def _select_place_by_mmr(
         eligible.append(
             (
                 (place_id, place),
-                place["score"] + sequential_score,
+                place["score"] + sequential_score + _slot_score(place, slot_index, flow),
                 category_sim,
                 compactness,
                 inter_course_sim,
@@ -200,21 +240,28 @@ def _build_ordered_place_items(
     selected_entries: Sequence[PlaceEntry],
     start_lat: float,
     start_lng: float,
+    flow: Optional[Dict[str, Any]] = None,
 ) -> List[PlaceItem]:
     remaining = list(selected_entries)
     items: List[PlaceItem] = []
     prev_lat, prev_lng = start_lat, start_lng
+    flow = flow if flow is not None else _flow_config()
+    distance_weight = float(flow.get("reorder_distance_weight", 1.0))
 
     while remaining:
-        next_idx = min(
-            range(len(remaining)),
-            key=lambda i: calculate_haversine_distance(
+        slot_index = len(items) + 1
+
+        def _order_key(index: int) -> float:
+            place = remaining[index][1]
+            distance_km = calculate_haversine_distance(
                 prev_lat,
                 prev_lng,
-                remaining[i][1]["mapX"],
-                remaining[i][1]["mapY"],
-            ),
-        )
+                place["mapX"],
+                place["mapY"],
+            )
+            return distance_weight * distance_km - _slot_score(place, slot_index, flow)
+
+        next_idx = min(range(len(remaining)), key=_order_key)
         _, place = remaining.pop(next_idx)
         dist_to_prev = calculate_haversine_distance(
             prev_lat, prev_lng, place["mapX"], place["mapY"]
@@ -254,6 +301,7 @@ def generate_courses(
         reverse=True
     )
     mmr_config = _mmr_config()
+    flow_config = _flow_config()
     daily_schedules = []
     used_today: set[int] = set()
 
@@ -288,6 +336,8 @@ def generate_courses(
                 other_course_points=other_course_points,
                 user_walk_preference=user_walk_preference,
                 config=mmr_config,
+                slot_index=idx,
+                flow=flow_config,
             )
 
             if not selected:
@@ -313,7 +363,9 @@ def generate_courses(
         schedule = DailySchedule(
             date=current_date,
             start_location=StartLocation(name=start_name, mapX=start_lat, mapY=start_lng),
-            places=_build_ordered_place_items(selected_entries, start_lat, start_lng),
+            places=_build_ordered_place_items(
+                selected_entries, start_lat, start_lng, flow=flow_config
+            ),
         )
         daily_schedules.append(schedule)
 

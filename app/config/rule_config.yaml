@@ -285,3 +285,47 @@ mmr_rule:
   far_km: 1.0                  # 코스 내부: 이 거리 이상이면 밀집 가산 0.0
   inter_course_near_km: 0.15   # 다른 코스와 이 거리 이하면 중복 벌점 1.0
   inter_course_far_km: 0.6     # 다른 코스와 이 거리 이상이면 중복 벌점 0.0
+
+# ============ 방문 순서 슬롯 (소분류 키워드) ============
+# category_detail 부분 일치. 매칭 없으면 슬롯 가산 없이 기존 점수로만 경쟁.
+
+course_flow_rule:
+  early_shopping_penalty: -1.5
+  reorder_distance_weight: 1.0
+  shopping_keywords:
+    - "올리브영"
+    - "드럭스토어"
+    - "백화점"
+    - "화장품"
+    - "패션"
+  slots:
+    1:
+      bonus: 2.0
+      keywords:
+        - "미술관"
+        - "전시"
+        - "전시관"
+        - "공연"
+        - "공연장"
+        - "박물관"
+        - "영화관"
+        - "테마파크"
+    2:
+      bonus: 2.0
+      keywords:
+        - "숲"
+        - "산"
+        - "도보여행"
+        - "둘레길"
+        - "전망대"
+        - "카페거리"
+        - "공원"
+        - "산책"
+    3:
+      bonus: 2.5
+      keywords:
+        - "올리브영"
+        - "드럭스토어"
+        - "백화점"
+        - "화장품"
+        - "패션"
