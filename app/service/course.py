@@ -295,6 +295,8 @@ def generate_courses(
     """
     점수가 반영된 후보 장소들을 바탕으로 특정 날짜의 DailySchedule 리스트를 생성하는 함수
     """
+    # Selection is deliberately greedy by rule score. Distance is calculated for
+    # the response after selection; it does not optimize the visiting order.
     sorted_places = sorted(
         scored_candidates.items(),
         key=lambda item: item[1]["score"],

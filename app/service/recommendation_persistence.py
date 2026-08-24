@@ -22,6 +22,8 @@ def save_recommendations(
     if len(courses) != 3 or sorted(course.rank for course in courses) != [1, 2, 3]:
         raise ValueError("추천 코스는 정확히 3개여야 합니다.")
 
+    # All three ranks share one timestamp so they can be treated as one request
+    # batch even though the schema has no explicit request/batch table.
     requested_at = datetime.now(timezone.utc)
     repository = RecommendedCourseRepository(db)
 
@@ -62,6 +64,8 @@ def save_recommendations(
                 for schedule in course.daily_schedules
             ],
         )
+        # flush() assigns the identity before the API transaction commits, so the
+        # generated ID can be returned in the same response.
         repository.add(record)
         course.recommended_course_id = record.id
         course.course_id = str(record.id)

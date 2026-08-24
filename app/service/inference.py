@@ -23,6 +23,9 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
     후보 장소와 출발지 정보를 모두 DB에서 조회하여 Rule을 적용시키는 함수
     """
     # PlaceRepository를 통해 후보 장소 데이터 전체 조회
+    # Application-level orchestrator: repositories load records, rule modules
+    # score/filter them, and course.py assembles the response. HTTP and commit
+    # concerns intentionally remain in api/recommendation.py.
     place_repo = PlaceRepository(db)
     db_places = place_repo.get_all()
 

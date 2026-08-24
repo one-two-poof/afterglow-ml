@@ -21,6 +21,8 @@ def save_selected_course(*, course_id: int, user_id: int, db: Session) -> None:
     if course is None:
         raise CourseSelectionNotFoundError
 
+    # Application-level idempotency handles ordinary retries. A database UNIQUE
+    # constraint is still required to close concurrent request races.
     existing = selected_repository.get_by_user_and_course(user_id, course_id)
     if existing is not None:
         return
