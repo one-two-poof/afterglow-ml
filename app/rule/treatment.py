@@ -1,5 +1,5 @@
 import datetime
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 from app.utils.config_loader import get_rule_config
 
@@ -22,7 +22,7 @@ def apply_treatment_rule(
 
     for place_id, place_info in candidates.items():
         is_blocked = False
-        place_penalty = 0.0
+        penalized_features: set[str] = set()
 
         # 장소 특성 추출 (질문자님이 정의하신 기준 적용)
         is_outdoor = int(place_info.get("is_indoor")) == 0
@@ -67,7 +67,7 @@ def apply_treatment_rule(
                             is_blocked = True
                             break
                         elif action == "PENALTY":
-                            place_penalty += penalty_score
+                            penalized_features.add(feature_key)
 
                 if is_blocked:
                     break
@@ -78,6 +78,9 @@ def apply_treatment_rule(
         # BLOCK 당한 장소는 제외
         if is_blocked:
             continue
+
+        # 피처당 1회만 반영하고, 장소 전체 벌점은 penalty_score 한 번으로 상한
+        place_penalty = penalty_score if penalized_features else 0.0
 
         # 후보군 유지 및 누적된 페널티 반영
         filtered_candidates[place_id] = place_info.copy()
