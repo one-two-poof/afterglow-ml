@@ -1,39 +1,52 @@
-from typing import Dict, Any
+from typing import Any, Dict, Optional, Sequence
 
 from app.utils.config_loader import get_rule_config
 
+
+def _place_text(place: Dict[str, Any]) -> str:
+    primary = place.get("place_category") or ""
+    detail = place.get("category_detail") or ""
+    return f"{primary} {detail}"
+
+
+def _theme_place_excludes() -> Sequence[str]:
+    category_config = get_rule_config().get("category_rule") or {}
+    return list(category_config.get("theme_place_excludes") or [])
+
+
+def is_theme_place(place: Dict[str, Any]) -> bool:
+    text = _place_text(place)
+    return any(keyword in text for keyword in _theme_place_excludes())
+
+
+def place_matches_keywords(
+    place: Dict[str, Any],
+    keywords: Sequence[str],
+    exclude_keywords: Optional[Sequence[str]] = None,
+) -> bool:
+    if not keywords:
+        return False
+    text = _place_text(place)
+    excludes = list(exclude_keywords) if exclude_keywords is not None else list(_theme_place_excludes())
+    if excludes and any(keyword in text for keyword in excludes):
+        return False
+    return any(keyword in text for keyword in keywords)
+
+
 def apply_category_rule(user_purpose: str, candidates: Dict[int, Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
     """
-    카테고리 룰 설정을 가져와 점수를 가산하는 함수
+    방문 목적에 맞는 소분류 키워드가 있으면 점수를 가산하는 함수.
+    대분류(place_category 단독 매핑)는 쓰지 않고, 소분류 키워드가
+    place_category 또는 category_detail에 포함되는지만 본다.
     """
-    # 규칙 설정 가져오기
-    rule_config = get_rule_config()
-    category_config = rule_config.get("category_rule")
+    category_config = get_rule_config().get("category_rule") or {}
+    weights = category_config.get("weights") or {}
+    keyword_weight = float(weights.get("keyword_match", 0.0))
+    purpose_keywords = category_config.get("purpose_keywords") or {}
+    preferred_keywords = list(purpose_keywords.get(user_purpose) or [])
 
-    weights = category_config.get("weights")
-    primary_weight = weights.get("primary_match")
-    keyword_weight = weights.get("keyword_match")
+    for _place_id, place_info in candidates.items():
+        if place_matches_keywords(place_info, preferred_keywords):
+            place_info["score"] += keyword_weight
 
-    purpose_primary_mapping = category_config.get("purpose_primary_mapping")
-    purpose_keywords = category_config.get("purpose_keywords")
-
-    # user_purpose를 통해 그에 맞는 카테고리를 설정 파일에서 가져오기
-    preferred_primary = purpose_primary_mapping.get(user_purpose)
-    preferred_keywords = purpose_keywords.get(user_purpose)
-
-    # 장소 후보군에서 각 장소의 주력 카테고리와 디테일 카테고리 얻은 후 preferred와 비교해서 점수 계산
-    for place_id, place_info in candidates.items():
-        primary_category = place_info.get("place_category")  
-        detail_category = place_info.get("category_detail")   
-        
-        score_increment = 0.0
-        
-        if primary_category in preferred_primary:
-            score_increment += primary_weight
-            
-        if detail_category and any(keyword in detail_category for keyword in preferred_keywords):
-            score_increment += keyword_weight
-            
-        place_info["score"] += score_increment
-        
     return candidates

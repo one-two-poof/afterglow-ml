@@ -123,6 +123,7 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
             start_name=start_name,
             used_by_rank=used_by_rank,
             user_walk_preference=request.user_walk_preference,
+            user_purpose=request.user_purpose,
         )
 
         if len(daily_schedules) != 3:

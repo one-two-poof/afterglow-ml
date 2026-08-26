@@ -1,6 +1,7 @@
 import datetime
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from app.rule.category import is_theme_place, place_matches_keywords
 from app.rule.distance import calculate_distance_score
 from app.schemas.recommendation import PlaceItem, DailySchedule, StartLocation
 from app.utils.config_loader import get_rule_config
@@ -32,9 +33,7 @@ def _slot_entry(slots: Dict[str, Any], slot_index: int) -> Dict[str, Any]:
     return slots.get(slot_index) or slots.get(str(slot_index)) or {}
 
 
-def _flow_config() -> Dict[str, Any]:
-    config = get_rule_config().get("course_flow_rule", {})
-    slots = config.get("slots", {})
+def _parse_slots(slots: Dict[str, Any]) -> Dict[int, Dict[str, Any]]:
     parsed_slots: Dict[int, Dict[str, Any]] = {}
     for slot_index in (1, 2, 3):
         slot = _slot_entry(slots, slot_index)
@@ -42,25 +41,109 @@ def _flow_config() -> Dict[str, Any]:
             "keywords": list(slot.get("keywords", [])),
             "bonus": float(slot.get("bonus", 0.0)),
         }
+    return parsed_slots
+
+
+def _purpose_key(user_purpose: Optional[str], default: str) -> str:
+    if user_purpose is None:
+        return default
+    value = getattr(user_purpose, "value", user_purpose)
+    return str(value) if value else default
+
+
+def _flow_config(user_purpose: Optional[str] = None) -> Dict[str, Any]:
+    config = get_rule_config().get("course_flow_rule", {})
+    purposes = config.get("purposes") or {}
+    default_purpose = str(config.get("default_purpose") or "문화관광")
+    purpose_key = _purpose_key(user_purpose, default_purpose)
+    purpose_cfg = purposes.get(purpose_key) or purposes.get(default_purpose) or {}
+    slots = purpose_cfg.get("slots") or config.get("slots") or {}
+    parsed_slots = _parse_slots(slots)
+    purpose_keywords: List[str] = []
+    seen_keywords: set[str] = set()
+    for slot in parsed_slots.values():
+        for keyword in slot.get("keywords", []):
+            if keyword not in seen_keywords:
+                seen_keywords.add(keyword)
+                purpose_keywords.append(keyword)
+    by_walk = config.get("slot_max_hop_by_walk") or {}
     return {
         "slots": parsed_slots,
-        "shopping_keywords": list(config.get("shopping_keywords", [])),
-        "early_shopping_penalty": float(config.get("early_shopping_penalty", 0.0)),
+        "purpose_keywords": purpose_keywords,
+        "shopping_keywords": list(purpose_cfg.get("shopping_keywords", config.get("shopping_keywords", []))),
+        "skip_categories": set(purpose_cfg.get("skip_categories", [])),
+        "early_shopping_penalty": float(
+            purpose_cfg.get("early_shopping_penalty", config.get("early_shopping_penalty", 0.0))
+        ),
         "reorder_distance_weight": float(config.get("reorder_distance_weight", 1.0)),
+        "slot_max_hop_by_walk": {
+            int(walk): float(max_hop) for walk, max_hop in by_walk.items()
+        },
+        "purpose_key": purpose_key,
     }
 
 
-def _detail_matches(detail: str, keywords: Sequence[str]) -> bool:
-    return bool(detail) and any(keyword in detail for keyword in keywords)
+def _slot_max_hop_km(user_walk_preference: int, flow: Dict[str, Any]) -> float:
+    by_walk = flow.get("slot_max_hop_by_walk") or {}
+    return float(by_walk.get(user_walk_preference, 2.5))
+
+
+def _hop_km(
+    place: Dict[str, Any],
+    prev_points: Sequence[Coord],
+    origin: Optional[Coord],
+) -> float:
+    if prev_points:
+        prev_lat, prev_lng = prev_points[-1]
+        return calculate_haversine_distance(prev_lat, prev_lng, place["mapX"], place["mapY"])
+    if origin is not None:
+        return calculate_haversine_distance(origin[0], origin[1], place["mapX"], place["mapY"])
+    return 0.0
+
+
+def _best_mmr_entry(
+    eligible: Sequence[Tuple[PlaceEntry, float, float, float, float]],
+    config: Dict[str, Any],
+) -> Optional[PlaceEntry]:
+    if not eligible:
+        return None
+    normalized = _normalize_scores([item[1] for item in eligible])
+    best_entry: Optional[PlaceEntry] = None
+    best_mmr = float("-inf")
+    for (entry, _raw_score, category_sim, compactness, inter_course_sim), relevance in zip(
+        eligible, normalized
+    ):
+        mmr = _mmr_score(
+            relevance,
+            category_sim,
+            compactness,
+            inter_course_sim,
+            config,
+        )
+        if mmr > best_mmr:
+            best_mmr = mmr
+            best_entry = entry
+    return best_entry
+
+
+def _diversify_by_category(
+    eligible: Sequence[Tuple[PlaceEntry, float, float, float, float]],
+    avoid_categories: set[str],
+) -> List[Tuple[PlaceEntry, float, float, float, float]]:
+    if not avoid_categories:
+        return list(eligible)
+    diverse = [
+        item for item in eligible if item[0][1]["place_category"] not in avoid_categories
+    ]
+    return diverse or list(eligible)
 
 
 def _slot_score(place: Dict[str, Any], slot_index: int, flow: Dict[str, Any]) -> float:
-    detail = place.get("category_detail") or ""
     slot = flow.get("slots", {}).get(slot_index, {})
     score = 0.0
-    if _detail_matches(detail, slot.get("keywords", [])):
+    if place_matches_keywords(place, slot.get("keywords", [])):
         score += float(slot.get("bonus", 0.0))
-    if slot_index == 1 and _detail_matches(detail, flow.get("shopping_keywords", [])):
+    if slot_index == 1 and place_matches_keywords(place, flow.get("shopping_keywords", [])):
         score += float(flow.get("early_shopping_penalty", 0.0))
     return score
 
@@ -152,23 +235,28 @@ def _select_place_by_mmr(
     config: Dict[str, Any],
     slot_index: int = 1,
     flow: Optional[Dict[str, Any]] = None,
+    allow_repeat_category: bool = False,
+    origin: Optional[Coord] = None,
+    avoid_categories: Optional[set[str]] = None,
 ) -> Optional[PlaceEntry]:
     flow = flow if flow is not None else _flow_config()
     eligible: List[Tuple[PlaceEntry, float, float, float, float]] = []
+    avoid = avoid_categories or set()
+    max_hop = _slot_max_hop_km(user_walk_preference, flow)
+    slot_keywords = list(flow.get("slots", {}).get(slot_index, {}).get("keywords", []))
+    purpose_keywords = list(flow.get("purpose_keywords", []))
 
     for place_id, place in candidates:
         if place_id in excluded_place_ids or place_id in selected_place_ids:
             continue
+        if is_theme_place(place):
+            continue
 
         place_category = place["place_category"]
+        if place_category in flow.get("skip_categories", set()):
+            continue
         is_drugstore = place_category == "드럭스토어"
         if is_drugstore and has_drugstore:
-            continue
-        if (
-            is_last_place
-            and len(used_place_categories) < 2
-            and place_category in used_place_categories
-        ):
             continue
 
         sequential_score = 0.0
@@ -215,25 +303,71 @@ def _select_place_by_mmr(
     if not eligible:
         return None
 
-    normalized = _normalize_scores([item[1] for item in eligible])
-    best_entry: Optional[PlaceEntry] = None
-    best_mmr = float("-inf")
+    unique = [
+        item
+        for item in eligible
+        if item[0][1]["place_category"] not in used_place_categories
+    ]
+    near_unique = [
+        item for item in unique if _hop_km(item[0][1], prev_points, origin) <= max_hop
+    ]
+    near_all = [
+        item for item in eligible if _hop_km(item[0][1], prev_points, origin) <= max_hop
+    ]
 
-    for (entry, _raw_score, category_sim, compactness, inter_course_sim), relevance in zip(
-        eligible, normalized
-    ):
-        mmr = _mmr_score(
-            relevance,
-            category_sim,
-            compactness,
-            inter_course_sim,
-            config,
-        )
-        if mmr > best_mmr:
-            best_mmr = mmr
-            best_entry = entry
+    def _matching(
+        pool: Sequence[Tuple[PlaceEntry, float, float, float, float]],
+        keywords: Sequence[str],
+    ) -> List[Tuple[PlaceEntry, float, float, float, float]]:
+        if not keywords:
+            return []
+        return [item for item in pool if place_matches_keywords(item[0][1], keywords)]
 
-    return best_entry
+    if allow_repeat_category:
+        pools = [
+            _matching(near_all, slot_keywords),
+            _matching(near_all, purpose_keywords),
+            eligible,
+        ]
+    else:
+        slot_near_unique = _matching(near_unique, slot_keywords)
+        purpose_near_unique = _matching(near_unique, purpose_keywords)
+        slot_near_repeat = _matching(near_all, slot_keywords or purpose_keywords)
+        need_new_category = len(used_place_categories) < 2
+        is_rest = flow.get("purpose_key") == "휴식"
+        if need_new_category:
+            pools = [
+                slot_near_unique,
+                purpose_near_unique,
+                near_unique,
+                slot_near_repeat,
+                unique,
+                eligible,
+            ]
+        elif is_rest:
+            pools = [
+                slot_near_unique,
+                purpose_near_unique,
+                slot_near_repeat,
+                near_unique,
+                unique,
+                eligible,
+            ]
+        else:
+            pools = [
+                slot_near_unique,
+                purpose_near_unique,
+                near_unique,
+                slot_near_repeat,
+                unique,
+                eligible,
+            ]
+
+    for pool in pools:
+        chosen = _best_mmr_entry(_diversify_by_category(pool, avoid), config)
+        if chosen:
+            return chosen
+    return None
 
 
 def _build_ordered_place_items(
@@ -291,6 +425,7 @@ def generate_courses(
     start_name: str,
     used_by_rank: Dict[int, set[int]],
     user_walk_preference: int,
+    user_purpose: Optional[str] = None,
 ) -> List[DailySchedule]:
     """
     점수가 반영된 후보 장소들을 바탕으로 특정 날짜의 DailySchedule 리스트를 생성하는 함수
@@ -303,9 +438,10 @@ def generate_courses(
         reverse=True
     )
     mmr_config = _mmr_config()
-    flow_config = _flow_config()
+    flow_config = _flow_config(user_purpose)
     daily_schedules = []
     used_today: set[int] = set()
+    selected_slot_categories: List[List[str]] = []
 
     for rank in range(1, 4):
         selected_entries: List[PlaceEntry] = []
@@ -313,18 +449,25 @@ def generate_courses(
         used_category_details: set[str] = set()
         used_place_categories: set[str] = set()
         has_drugstore = False
-        excluded_place_ids = used_by_rank.get(rank, set()) | used_today
+        previously_used = set().union(*used_by_rank.values()) if used_by_rank else set()
+        excluded_place_ids = previously_used | used_today
         other_course_points = [
             (place.mapX, place.mapY)
             for schedule in daily_schedules
             for place in schedule.places
         ]
+        origin = (start_lat, start_lng)
 
         for idx in range(1, 4):
             is_last_place = idx == 3
             prev_points = [
                 (place["mapX"], place["mapY"]) for _, place in selected_entries
             ]
+            avoid_categories = {
+                cats[idx - 1]
+                for cats in selected_slot_categories
+                if len(cats) >= idx
+            }
 
             selected = _select_place_by_mmr(
                 candidates=sorted_places,
@@ -340,6 +483,8 @@ def generate_courses(
                 config=mmr_config,
                 slot_index=idx,
                 flow=flow_config,
+                origin=origin,
+                avoid_categories=avoid_categories,
             )
 
             if not selected:
@@ -361,6 +506,9 @@ def generate_courses(
 
         used_today.update(selected_place_ids)
         used_by_rank.setdefault(rank, set()).update(selected_place_ids)
+        selected_slot_categories.append(
+            [place["place_category"] for _, place in selected_entries]
+        )
 
         schedule = DailySchedule(
             date=current_date,
