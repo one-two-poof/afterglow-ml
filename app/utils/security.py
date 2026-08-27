@@ -63,7 +63,7 @@ def get_current_user(
             detail="인증 토큰의 사용자 ID가 올바르지 않습니다.",
         )
 
-    if user_id <= 0:
+    if user_id < 0:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="인증 토큰의 사용자 ID가 올바르지 않습니다.",
