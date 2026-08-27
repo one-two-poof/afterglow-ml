@@ -1,22 +1,30 @@
 import os
 
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
+bearer_scheme = HTTPBearer(
+    auto_error=False,
+    description="JWT access token",
+)
+
 
 def get_current_user(
-    authorization: str = Header(..., description="Bearer {JWT_TOKEN}"),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> dict:
-    scheme, separator, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not separator or not token:
+    if credentials is None or not credentials.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization 헤더는 Bearer 토큰 형식이어야 합니다.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
+
+    token = credentials.credentials
 
     if not SECRET_KEY or not ALGORITHM:
         raise HTTPException(
