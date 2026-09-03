@@ -23,10 +23,16 @@ class UserPurpose(str, Enum):
     shopping = "뷰티쇼핑"
     rest = "휴식"
 
+class PlaceType(str, Enum):
+    HOSPITAL = "HOSPITAL"
+    ACCOMMODATION = "ACCOMMODATION"
+    ATTRACTION = "ATTRACTION"
+
 # --- 하위 요청 객체 ---
 class DailyStartItem(BaseModel):
     date: datetime.date = Field(..., description="YYYY-MM-DD 날짜")
-    start_id: int = Field(..., description="해당 날짜의 시작점 이름 (병원 또는 숙소)")
+    start_id: int = Field(..., description="해당 날짜의 출발지 DB id (병원/숙소/관광지)")
+    place_type: PlaceType = Field(..., description="출발지 유형 (HOSPITAL / ACCOMMODATION / ATTRACTION)")
 
 class TreatmentRequest(BaseModel):
     name: TreatmentType = Field(..., description="시술 항목")

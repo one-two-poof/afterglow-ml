@@ -4,6 +4,7 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from app.schemas.recommendation import (
+    PlaceType,
     RecommendationRequest,
     RecommendationResponse,
     RecommendedCourse,
@@ -39,8 +40,9 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
     if not db_start_locations:
         raise ValueError("데이터베이스에 등록된 출발지 데이터가 없습니다.")
 
-    # 조회한 출발지 리스트를 빠르게 검색하기 위해 딕셔너리로 매핑 (id 기준)
+    # 조회한 출발지/관광지 리스트를 빠르게 검색하기 위해 딕셔너리로 매핑 (id 기준)
     start_places_dict = {int(loc.id): loc for loc in db_start_locations}
+    places_dict = {int(place.id): place for place in db_places}
 
     # DB에서 가져온 후보 장소 데이터를 기존 로직이 요구하는 딕셔너리 구조로 매핑
     candidate_places: Dict[int, Dict[str, Any]] = {}
@@ -86,10 +88,21 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         if start_info is None:
             raise ValueError(f"{current_date} 날짜의 출발점 정보가 없습니다.")
 
-        # DB를 통해 만든 dict에서 id를 통해 장소 정보 얻기
-        start_loc_obj = start_places_dict.get(start_info.start_id)
-        if not start_loc_obj:
-            raise ValueError(f"ID가 {start_info.start_id}인 출발지 정보를 데이터베이스에서 찾을 수 없습니다.")
+        place_type = start_info.place_type
+        if place_type == PlaceType.ATTRACTION:
+            start_loc_obj = places_dict.get(start_info.start_id)
+            if not start_loc_obj:
+                raise ValueError(
+                    f"ID가 {start_info.start_id}인 ATTRACTION 출발지 정보를 "
+                    "데이터베이스에서 찾을 수 없습니다."
+                )
+        else:
+            start_loc_obj = start_places_dict.get(start_info.start_id)
+            if not start_loc_obj:
+                raise ValueError(
+                    f"ID가 {start_info.start_id}인 {place_type.value} 출발지 정보를 "
+                    "데이터베이스에서 찾을 수 없습니다."
+                )
 
         # DB의 출발지 데이터에 mapX, mapY 가져오기(결측치가 있다면 임시로 0.0으로 설정)
         start_name = start_loc_obj.place_name
@@ -98,6 +111,8 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         
         # 매일 리셋되는 후보군 복사본 생성
         candidates_copy = {k: v.copy() for k, v in candidate_places.items()}
+        if place_type == PlaceType.ATTRACTION:
+            candidates_copy.pop(start_info.start_id, None)
         
         # == 거리 룰 적용 ==
         scored_candidates = apply_distance_rule(
