@@ -379,11 +379,22 @@ def _build_ordered_place_items(
     remaining = list(selected_entries)
     items: List[PlaceItem] = []
     prev_lat, prev_lng = start_lat, start_lng
+    prev_category: Optional[str] = None
     flow = flow if flow is not None else _flow_config()
     distance_weight = float(flow.get("reorder_distance_weight", 1.0))
 
     while remaining:
         slot_index = len(items) + 1
+        candidate_indices = list(range(len(remaining)))
+        # Avoid the same place_category twice in a row when another category remains.
+        if prev_category is not None:
+            different_indices = [
+                index
+                for index in candidate_indices
+                if remaining[index][1]["place_category"] != prev_category
+            ]
+            if different_indices:
+                candidate_indices = different_indices
 
         def _order_key(index: int) -> float:
             place = remaining[index][1]
@@ -395,7 +406,7 @@ def _build_ordered_place_items(
             )
             return distance_weight * distance_km - _slot_score(place, slot_index, flow)
 
-        next_idx = min(range(len(remaining)), key=_order_key)
+        next_idx = min(candidate_indices, key=_order_key)
         _, place = remaining.pop(next_idx)
         dist_to_prev = calculate_haversine_distance(
             prev_lat, prev_lng, place["mapX"], place["mapY"]
@@ -413,6 +424,7 @@ def _build_ordered_place_items(
             )
         )
         prev_lat, prev_lng = place["mapX"], place["mapY"]
+        prev_category = place["place_category"]
 
     return items
 
