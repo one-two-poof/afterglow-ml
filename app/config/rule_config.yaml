@@ -308,14 +308,13 @@ mmr_rule:
 
 # ============ 방문 순서 슬롯 (목적별 소분류 키워드) ============
 # place_category와 category_detail 부분 일치.
-# 슬롯 키워드 장소가 slot_max_hop 이내면 그 슬롯을 우선하고,
-# 없으면 같은 목적의 가까운 장소, 그것도 없으면 근처 장소로 대체한다.
+# 슬롯 키워드는 하드 풀 우선이 아니라 점수 소프트 가산(힌트)으로만 반영한다.
+# 후보 풀은 목적 키워드 근처 → 근처 다양 → 전체 순이며, slot_max_hop은 near 풀 구성에 사용.
 
 course_flow_rule:
   reorder_distance_weight: 1.0
   default_purpose: "문화관광"
-  # 슬롯 강제 매칭은 직전 장소(없으면 출발지) 기준 이 거리 이내일 때만.
-  # 넘으면 같은 목적의 가까운 곳, 그것도 없으면 근처 장소로 대체한다.
+  # near_unique / near_all: 직전 장소(없으면 출발지) 기준 이 거리 이내.
   slot_max_hop_by_walk:
     1: 1.8
     2: 2.5
@@ -324,7 +323,7 @@ course_flow_rule:
     5: 5.0
   purposes:
     "문화관광":
-      early_shopping_penalty: -1.5
+      early_shopping_penalty: -0.8
       shopping_keywords:
         - "올리브영"
         - "드럭스토어"
@@ -335,7 +334,7 @@ course_flow_rule:
         - "전문매장/상가"
       slots:
         1:
-          bonus: 2.0
+          bonus: 1.0
           keywords:
             - "미술관"
             - "화랑"
@@ -353,7 +352,7 @@ course_flow_rule:
             - "문화전수시설"
             - "이색체험"
         2:
-          bonus: 2.0
+          bonus: 1.0
           keywords:
             - "테마거리"
             - "이색거리"
@@ -373,7 +372,7 @@ course_flow_rule:
             - "종교성지"
             - "유명건물"
         3:
-          bonus: 2.5
+          bonus: 1.5
           keywords:
             - "올리브영"
             - "드럭스토어"
@@ -390,7 +389,7 @@ course_flow_rule:
         - "이색찜질방"
       slots:
         1:
-          bonus: 2.0
+          bonus: 1.0
           keywords:
             - "백화점"
             - "패션"
@@ -400,11 +399,11 @@ course_flow_rule:
             - "상설시장"
             - "전문매장/상가"
         2:
-          bonus: 2.0
+          bonus: 1.0
           keywords:
             - "카페"
         3:
-          bonus: 2.5
+          bonus: 1.5
           keywords:
             - "올리브영"
             - "드럭스토어"
@@ -414,7 +413,7 @@ course_flow_rule:
             - "상설시장"
             - "전문매장/상가"
     "휴식":
-      early_shopping_penalty: -1.5
+      early_shopping_penalty: -0.8
       shopping_keywords:
         - "올리브영"
         - "드럭스토어"
@@ -425,7 +424,7 @@ course_flow_rule:
         - "전문매장/상가"
       slots:
         1:
-          bonus: 2.0
+          bonus: 1.0
           keywords:
             - "카페"
             - "스파"
@@ -433,7 +432,7 @@ course_flow_rule:
             - "찜질방"
             - "사우나"
         2:
-          bonus: 2.0
+          bonus: 1.0
           keywords:
             - "공원"
             - "테마공원"
@@ -449,7 +448,7 @@ course_flow_rule:
             - "전망대"
             - "정원"
         3:
-          bonus: 2.5
+          bonus: 1.5
           keywords:
             - "카페"
             - "스파"
