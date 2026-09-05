@@ -243,7 +243,6 @@ def _select_place_by_mmr(
     eligible: List[Tuple[PlaceEntry, float, float, float, float]] = []
     avoid = avoid_categories or set()
     max_hop = _slot_max_hop_km(user_walk_preference, flow)
-    slot_keywords = list(flow.get("slots", {}).get(slot_index, {}).get("keywords", []))
     purpose_keywords = list(flow.get("purpose_keywords", []))
 
     for place_id, place in candidates:
@@ -323,45 +322,15 @@ def _select_place_by_mmr(
             return []
         return [item for item in pool if place_matches_keywords(item[0][1], keywords)]
 
+    # Slot keywords are soft hints via _slot_score only; pools prefer purpose/near/diversity.
+    purpose_near = _matching(
+        near_all if allow_repeat_category else near_unique,
+        purpose_keywords,
+    )
     if allow_repeat_category:
-        pools = [
-            _matching(near_all, slot_keywords),
-            _matching(near_all, purpose_keywords),
-            eligible,
-        ]
+        pools = [purpose_near, near_all, eligible]
     else:
-        slot_near_unique = _matching(near_unique, slot_keywords)
-        purpose_near_unique = _matching(near_unique, purpose_keywords)
-        slot_near_repeat = _matching(near_all, slot_keywords or purpose_keywords)
-        need_new_category = len(used_place_categories) < 2
-        is_rest = flow.get("purpose_key") == "휴식"
-        if need_new_category:
-            pools = [
-                slot_near_unique,
-                purpose_near_unique,
-                near_unique,
-                slot_near_repeat,
-                unique,
-                eligible,
-            ]
-        elif is_rest:
-            pools = [
-                slot_near_unique,
-                purpose_near_unique,
-                slot_near_repeat,
-                near_unique,
-                unique,
-                eligible,
-            ]
-        else:
-            pools = [
-                slot_near_unique,
-                purpose_near_unique,
-                near_unique,
-                slot_near_repeat,
-                unique,
-                eligible,
-            ]
+        pools = [purpose_near, near_unique, unique, eligible]
 
     for pool in pools:
         chosen = _best_mmr_entry(_diversify_by_category(pool, avoid), config)
