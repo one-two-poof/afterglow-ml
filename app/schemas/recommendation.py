@@ -43,7 +43,8 @@ class RecommendationRequest(BaseModel):
     trip_start_date: datetime.date = Field(..., description="여행 시작일 (YYYY-MM-DD)")
     trip_end_date: datetime.date = Field(..., description="여행 종료일 (YYYY-MM-DD)")
     user_purpose: UserPurpose = Field(..., description="유저 방문 목적")
-    user_walk_preference: int = Field(..., ge=1, le=5, description="도보 선호도 (1~5)")
+    mobility_range: int = Field(...,ge=1,le=5,description="코스 이동 반경/밀집도 (1=근처 위주, 5=멀리 이동 가능)")
+    activity_level: int = Field(...,ge=1,le=5,description="장소 활동 난이도 선호 (1=편한 곳, 5=많이 걸어도 됨)")
     daily_startList: List[DailyStartItem] = Field(..., description="날짜별 출발점 정보 리스트")
     treatmentList: List[TreatmentRequest] = Field(..., description="여행 기간 중 받는 시술 목록")
 
