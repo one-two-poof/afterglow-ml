@@ -81,7 +81,7 @@ API 계층이 트랜잭션 경계를 소유한다. 서비스는 `flush()`까지�
 ### `app/rule/`
 
 - `category.py`: 방문 목적과 주/상세 카테고리 일치 가산점.
-- `walk_preference.py`: 보행 선호와 장소 난이도 차이 가감점.
+- `activity_level.py`: activity_level과 장소 난이도(walk_hard) 차이 가감점.
 - `distance.py`: 하버사인 직선거리 가산 및 반경 밖 제외.
 - `treatment.py`: 시술 후 경과일과 장소 특성에 따른 차단/감점.
 
