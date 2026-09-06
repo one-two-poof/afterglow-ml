@@ -37,7 +37,7 @@ afterglow-ml/
 │   │   ├── category.py               # 카테고리 가산점 규칙
 │   │   ├── distance.py               # 거리 계산 및 필터링 규칙
 │   │   ├── treatment.py              # 시술별 페널티 계산 및 필터링 규칙
-│   │   └── walk_preference.py        # 도보 선호도와 각 장소별 차이 계산 규칙
+│   │   └── activity_level.py         # activity_level과 장소 walk_hard 차이 가산 규칙
 │   │
 │   ├── schemas/
 │   │   ├── __init__.py

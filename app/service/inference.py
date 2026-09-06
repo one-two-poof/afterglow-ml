@@ -15,7 +15,7 @@ from app.repositories.start_location import StartLocationRepository
 from app.rule.category import apply_category_rule
 from app.rule.distance import apply_distance_rule
 from app.rule.treatment import apply_treatment_rule
-from app.rule.walk_preference import apply_walk_preference_rule
+from app.rule.activity_level import apply_activity_level_rule
 from app.service.course import generate_courses
 
 def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationResponse:
@@ -68,8 +68,8 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
     # == 카테고리 룰 적용 ==
     candidate_places = apply_category_rule(request.user_purpose, candidate_places)
 
-    # == 도보 선호도 룰 적용 ==
-    candidate_places =  apply_walk_preference_rule(request.user_walk_preference, candidate_places)
+    # == 활동 난이도 룰 적용 ==
+    candidate_places = apply_activity_level_rule(request.activity_level, candidate_places)
 
     # rank별로 날짜별 일정을 모으기 위한 구조
     rank_aggregated_data: Dict[int, Dict[str, Any]] = {}
@@ -118,7 +118,7 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
         scored_candidates = apply_distance_rule(
             start_lat=start_lat,
             start_lng=start_lng,
-            user_walk_preference=request.user_walk_preference,
+            mobility_range=request.mobility_range,
             candidates=candidates_copy
         )
 
@@ -137,7 +137,7 @@ def apply_rule(request: RecommendationRequest, db: Session) -> RecommendationRes
             start_lng=start_lng,
             start_name=start_name,
             used_by_rank=used_by_rank,
-            user_walk_preference=request.user_walk_preference,
+            mobility_range=request.mobility_range,
             user_purpose=request.user_purpose,
         )
 

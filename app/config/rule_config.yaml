@@ -1,7 +1,7 @@
-# ============ 거리 규칙 ============
+# ============ 거리 규칙 (mobility_range 1~5) ============
 
 preference_tables:
-  1: # 걷기 선호도 1 (최대 1.0km)
+  1: # mobility_range 1 (최대 1.0km)
     max_allowable_dist: 1.0
     thresholds:
       - max_dist: 0.07
@@ -14,7 +14,7 @@ preference_tables:
         score: 4.0
       - max_dist: 1.0
         score: 2.0
-  2: # 걷기 선호도 2 (최대 3.0km)
+  2: # mobility_range 2 (최대 3.0km)
     max_allowable_dist: 3.0
     thresholds:
       - max_dist: 0.2
@@ -27,7 +27,7 @@ preference_tables:
         score: 5.5
       - max_dist: 3.0
         score: 3.0
-  3: # 걷기 선호도 3 (최대 5.0km)
+  3: # mobility_range 3 (최대 5.0km)
     max_allowable_dist: 5.0
     thresholds:
       - max_dist: 0.4
@@ -40,7 +40,7 @@ preference_tables:
         score: 5.5
       - max_dist: 5.0
         score: 3.0
-  4: # 걷기 선호도 4 (최대 7.0km)
+  4: # mobility_range 4 (최대 7.0km)
     max_allowable_dist: 7.0
     thresholds:
       - max_dist: 0.7
@@ -53,7 +53,7 @@ preference_tables:
         score: 5.5
       - max_dist: 7.0
         score: 3.0
-  5: # 걷기 선호도 5 (최대 9.0km)
+  5: # mobility_range 5 (최대 9.0km)
     max_allowable_dist: 9.0
     thresholds:
       - max_dist: 0.9
@@ -276,11 +276,11 @@ treatment_rule:
       heat_exposure:
       massage_pressure:
 
-# ============ 도보 선호도 규칙 ============
+# ============ 활동 난이도 규칙 (activity_level) ============
 
-walk_preference_rule:
-  # user_walk_preference와 place의 walk_hard 차이에 따른 점수 설정
-  # 차이 = abs(user_walk_preference - walk_hard)
+activity_level_rule:
+  # activity_level과 place의 walk_hard 차이에 따른 점수 설정
+  # 차이 = abs(activity_level - walk_hard)
   score_mapping:
     0: 3.0     # 완벽히 일치
     1: 1.5     # 소폭 일치
@@ -314,8 +314,8 @@ mmr_rule:
 course_flow_rule:
   reorder_distance_weight: 1.0
   default_purpose: "문화관광"
-  # near_unique / near_all: 직전 장소(없으면 출발지) 기준 이 거리 이내.
-  slot_max_hop_by_walk:
+  # near_unique / near_all: 직전 장소(없으면 출발지) 기준 이 거리 이내 (mobility_range별).
+  slot_max_hop_by_mobility:
     1: 1.8
     2: 2.5
     3: 3.5

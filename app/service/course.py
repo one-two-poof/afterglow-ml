@@ -66,7 +66,7 @@ def _flow_config(user_purpose: Optional[str] = None) -> Dict[str, Any]:
             if keyword not in seen_keywords:
                 seen_keywords.add(keyword)
                 purpose_keywords.append(keyword)
-    by_walk = config.get("slot_max_hop_by_walk") or {}
+    by_mobility = config.get("slot_max_hop_by_mobility") or {}
     return {
         "slots": parsed_slots,
         "purpose_keywords": purpose_keywords,
@@ -76,16 +76,16 @@ def _flow_config(user_purpose: Optional[str] = None) -> Dict[str, Any]:
             purpose_cfg.get("early_shopping_penalty", config.get("early_shopping_penalty", 0.0))
         ),
         "reorder_distance_weight": float(config.get("reorder_distance_weight", 1.0)),
-        "slot_max_hop_by_walk": {
-            int(walk): float(max_hop) for walk, max_hop in by_walk.items()
+        "slot_max_hop_by_mobility": {
+            int(level): float(max_hop) for level, max_hop in by_mobility.items()
         },
         "purpose_key": purpose_key,
     }
 
 
-def _slot_max_hop_km(user_walk_preference: int, flow: Dict[str, Any]) -> float:
-    by_walk = flow.get("slot_max_hop_by_walk") or {}
-    return float(by_walk.get(user_walk_preference, 2.5))
+def _slot_max_hop_km(mobility_range: int, flow: Dict[str, Any]) -> float:
+    by_mobility = flow.get("slot_max_hop_by_mobility") or {}
+    return float(by_mobility.get(mobility_range, 2.5))
 
 
 def _hop_km(
@@ -231,7 +231,7 @@ def _select_place_by_mmr(
     is_last_place: bool,
     prev_points: Sequence[Coord],
     other_course_points: Sequence[Coord],
-    user_walk_preference: int,
+    mobility_range: int,
     config: Dict[str, Any],
     slot_index: int = 1,
     flow: Optional[Dict[str, Any]] = None,
@@ -242,7 +242,7 @@ def _select_place_by_mmr(
     flow = flow if flow is not None else _flow_config()
     eligible: List[Tuple[PlaceEntry, float, float, float, float]] = []
     avoid = avoid_categories or set()
-    max_hop = _slot_max_hop_km(user_walk_preference, flow)
+    max_hop = _slot_max_hop_km(mobility_range, flow)
     purpose_keywords = list(flow.get("purpose_keywords", []))
 
     for place_id, place in candidates:
@@ -265,7 +265,7 @@ def _select_place_by_mmr(
                 prev_lat, prev_lng, place["mapX"], place["mapY"]
             )
             sequential_score, is_excluded = calculate_distance_score(
-                dist_to_prev, user_walk_preference
+                dist_to_prev, mobility_range
             )
             if is_excluded:
                 continue
@@ -405,7 +405,7 @@ def generate_courses(
     start_lng: float,
     start_name: str,
     used_by_rank: Dict[int, set[int]],
-    user_walk_preference: int,
+    mobility_range: int,
     user_purpose: Optional[str] = None,
 ) -> List[DailySchedule]:
     """
@@ -460,7 +460,7 @@ def generate_courses(
                 is_last_place=is_last_place,
                 prev_points=prev_points,
                 other_course_points=other_course_points,
-                user_walk_preference=user_walk_preference,
+                mobility_range=mobility_range,
                 config=mmr_config,
                 slot_index=idx,
                 flow=flow_config,
