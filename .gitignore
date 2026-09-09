@@ -30,6 +30,8 @@ __pycache__/
 .cursorrules
 
 # 기타 등등
-scripts/
+scripts/*
+!scripts/transform_small_business_places.py
 mdfile/
-tests/
+tests/*
+!tests/test_transform_small_business_places.py
